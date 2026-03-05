@@ -58,6 +58,27 @@
   color: var(--accent-teal);
 }
 
+.untrackBtn {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.1rem 0.3rem;
+  border-radius: var(--radius-md);
+  opacity: 0;
+  transition: opacity var(--transition-fast), color var(--transition-fast), background var(--transition-fast);
+}
+.card:hover .untrackBtn {
+  opacity: 1;
+}
+.untrackBtn:hover {
+  color: var(--accent-red, #e55);
+  background: rgba(255, 80, 80, 0.1);
+}
+
 .stats {
   display: grid;
   grid-template-columns: repeat(4, 1fr);

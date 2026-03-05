@@ -111,10 +111,18 @@ function RepoBrowser({ onClose }: { onClose: () => void }) {
 }
 
 export function OrgOverview() {
+  const qc = useQueryClient();
   const { data: repos, isLoading } = useQuery({
     queryKey: ['repos'],
     queryFn: api.listRepos,
     refetchInterval: 30_000,
+  });
+
+  const removeMutation = useMutation({
+    mutationFn: (id: number) => api.removeRepo(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['repos'] });
+    },
   });
 
   const [browserOpen, setBrowserOpen] = useState(false);
@@ -140,6 +148,19 @@ export function OrgOverview() {
                 style={{ background: repo.last_synced_at ? healthColor(repo) : 'var(--text-dim)' }}
               />
               <span className={styles.repoName}>{repo.full_name}</span>
+              <button
+                className={styles.untrackBtn}
+                title="Untrack repo"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (window.confirm(`Untrack ${repo.full_name}?`)) {
+                    removeMutation.mutate(repo.id);
+                  }
+                }}
+              >
+                ×
+              </button>
             </div>
             <div className={styles.stats}>
               <div className={styles.stat}>
