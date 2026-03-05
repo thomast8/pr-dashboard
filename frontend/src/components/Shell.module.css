@@ -57,6 +57,62 @@
   background: var(--bg-elevated);
 }
 
+.spacer {
+  flex: 1;
+}
+
+.userArea {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.userBtn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: none;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: 0.25rem 0.75rem;
+  cursor: pointer;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.85rem;
+  transition: background var(--transition-fast);
+}
+.userBtn:hover {
+  background: var(--bg-elevated);
+}
+
+.avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+}
+
+.userName {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.connectBtn {
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  padding: 0.25rem 0.75rem;
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  cursor: pointer;
+  font-family: inherit;
+  transition: background var(--transition-fast);
+}
+.connectBtn:hover {
+  background: var(--border-default);
+}
+
 .main {
   overflow: auto;
   padding: 1.5rem;
