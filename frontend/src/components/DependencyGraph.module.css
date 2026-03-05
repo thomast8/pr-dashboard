@@ -1,10 +1,13 @@
 .graphArea {
   overflow: auto;
   padding: 0.5rem 0;
+  flex: 1;
+  min-height: 0;
 }
 
 .graphContainer {
   position: relative;
+  min-width: fit-content;
 }
 
 .svg {
@@ -19,6 +22,11 @@
   fill: none;
   stroke: var(--border-hover);
   stroke-width: 2;
+  transition: opacity 0.3s;
+}
+
+.arrowDimmed {
+  opacity: 0.15;
 }
 
 /* PR Cards */
@@ -31,7 +39,7 @@
   cursor: pointer;
   z-index: 2;
   user-select: none;
-  transition: border-color var(--transition-normal), box-shadow var(--transition-normal), transform 0.12s;
+  transition: border-color var(--transition-normal), box-shadow var(--transition-normal), transform 0.12s, opacity 0.3s;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -47,25 +55,18 @@
   box-shadow: 0 0 0 2px rgba(97, 218, 251, 0.25), 0 4px 16px rgba(97, 218, 251, 0.12);
 }
 
+.cardDimmed {
+  opacity: 0.2;
+}
+.cardDimmed:hover {
+  opacity: 0.55;
+}
+
 .cardHeader {
   display: flex;
   align-items: center;
   gap: 0.3rem;
   margin-bottom: 0.15rem;
-}
-
-.position {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 17px;
-  height: 17px;
-  border-radius: 50%;
-  background: var(--accent-green-bg);
-  color: var(--accent-gold);
-  font-size: 0.58rem;
-  font-weight: 700;
-  flex-shrink: 0;
 }
 
 .prNumber {
@@ -110,3 +111,57 @@
 }
 .add { color: var(--accent-green); margin-right: 0.2rem; }
 .del { color: var(--accent-red); }
+
+/* Standalone PRs grid */
+.standaloneSection {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-default);
+}
+
+.standaloneLabel {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.5rem;
+}
+
+.standaloneGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.standaloneCard {
+  position: relative;
+  width: 210px;
+  height: 85px;
+  background: var(--bg-surface);
+  border: 2px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: 0.4rem 0.6rem;
+  cursor: pointer;
+  user-select: none;
+  transition: border-color var(--transition-normal), box-shadow var(--transition-normal), transform 0.12s, opacity 0.3s;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.standaloneCard:hover {
+  border-color: var(--accent-blue);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 12px rgba(97, 218, 251, 0.1);
+}
+
+.standaloneCard.cardSelected {
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 0 2px rgba(97, 218, 251, 0.25), 0 4px 16px rgba(97, 218, 251, 0.12);
+}
+
+.standaloneCard.cardDimmed {
+  opacity: 0.2;
+}
+.standaloneCard.cardDimmed:hover {
+  opacity: 0.55;
+}

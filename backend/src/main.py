@@ -6,7 +6,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from loguru import logger
 
@@ -86,13 +86,30 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
 
 # Serve built frontend in production — MUST be last (catch-all mount)
 # Check both local dev layout and Docker layout
+_frontend_dist: Path | None = None
 for _candidate in [
     Path(__file__).parent.parent.parent / "frontend" / "dist",  # local dev
     Path(__file__).parent.parent / "frontend" / "dist",  # Docker (/app/frontend/dist)
 ]:
     if _candidate.exists():
-        app.mount("/", StaticFiles(directory=str(_candidate), html=True), name="frontend")
+        _frontend_dist = _candidate
         break
+
+if _frontend_dist is not None:
+    _index_html = _frontend_dist / "index.html"
+
+    # SPA catch-all: serve index.html for any path that isn't an API route or static asset
+    @app.get("/{full_path:path}")
+    async def spa_fallback(full_path: str) -> FileResponse:
+        # If the requested file exists on disk (JS, CSS, images), serve it
+        asset = _frontend_dist / full_path
+        if full_path and asset.exists() and asset.is_file():
+            return FileResponse(asset)
+        return FileResponse(_index_html)
+
+    # Also mount StaticFiles for efficient serving of actual assets
+    _assets_dir = str(_frontend_dist / "assets")
+    app.mount("/assets", StaticFiles(directory=_assets_dir), name="static-assets")
 
 
 if __name__ == "__main__":

@@ -8,6 +8,8 @@
   flex: 1;
   overflow: auto;
   padding-right: 1rem;
+  display: flex;
+  flex-direction: column;
 }
 
 .titleRow {
@@ -70,77 +72,4 @@
   color: var(--text-muted);
   padding: 2rem;
   text-align: center;
-}
-
-.table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.82rem;
-}
-
-.table th {
-  text-align: left;
-  color: var(--text-dim);
-  font-weight: 500;
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding: 0.5rem 0.5rem;
-  border-bottom: 1px solid var(--border-default);
-}
-
-.row {
-  cursor: pointer;
-  transition: background var(--transition-fast);
-}
-.row:hover { background: var(--bg-elevated); }
-.row.selected { background: var(--bg-elevated); outline: 1px solid var(--accent-blue); }
-
-.row td {
-  padding: 0.5rem 0.5rem;
-  border-bottom: 1px solid var(--border-default);
-  vertical-align: middle;
-}
-
-.prNum {
-  white-space: nowrap;
-  font-weight: 600;
-}
-.prNum a { color: var(--accent-blue); }
-
-.draftBadge {
-  font-size: 0.55rem;
-  padding: 1px 4px;
-  border-radius: 3px;
-  background: var(--ci-neutral);
-  color: #fff;
-  font-weight: 600;
-  text-transform: uppercase;
-  margin-left: 0.3rem;
-  vertical-align: middle;
-}
-
-.prTitle {
-  color: var(--text-secondary);
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.author { color: var(--text-muted); }
-
-.diff {
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  white-space: nowrap;
-}
-.add { color: var(--accent-green); margin-right: 0.3rem; }
-.del { color: var(--accent-red); }
-
-.updated { color: var(--text-dim); white-space: nowrap; }
-
-.stackLink {
-  font-size: 0.72rem;
-  color: var(--accent-purple);
 }
