@@ -49,6 +49,12 @@ class Settings(BaseSettings):
         default=7 * 24 * 3600, description="Session cookie lifetime"
     )
 
+    # GitHub OAuth
+    github_oauth_client_id: str = Field(default="", description="GitHub OAuth App client ID")
+    github_oauth_client_secret: str = Field(
+        default="", description="GitHub OAuth App client secret"
+    )
+
     # Server
     host: str = Field(default="0.0.0.0", description="Server bind host")
     port: int = Field(default=8000, description="Server bind port")
