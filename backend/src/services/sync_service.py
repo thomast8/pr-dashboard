@@ -146,21 +146,36 @@ class SyncService:
             gh_pulls = await github.list_open_pulls(owner, name)
             logger.info(f"  Found {len(gh_pulls)} open PRs")
 
+            fetched_pr_numbers = {gh_pr["number"] for gh_pr in gh_pulls}
+
             async with async_session_factory() as session:
                 for gh_pr in gh_pulls:
                     pr = await self._upsert_pr(session, repo_id, gh_pr)
 
-                    try:
-                        detail = await github.get_pull(owner, name, gh_pr["number"])
-                        pr.additions = detail.get("additions", 0)
-                        pr.deletions = detail.get("deletions", 0)
-                        pr.changed_files = detail.get("changed_files", 0)
-                        pr.mergeable_state = detail.get("mergeable_state")
-                    except Exception as exc:
-                        logger.warning(f"  Could not fetch detail for PR #{gh_pr['number']}: {exc}")
+                    # Fetch detail, workflow runs, and reviews in parallel
+                    detail_result, runs_result, reviews_result = await asyncio.gather(
+                        github.get_pull(owner, name, gh_pr["number"]),
+                        github.get_workflow_runs(owner, name, gh_pr["head"]["sha"]),
+                        github.get_reviews(owner, name, gh_pr["number"]),
+                        return_exceptions=True,
+                    )
 
-                    try:
-                        runs = await github.get_workflow_runs(owner, name, gh_pr["head"]["sha"])
+                    if isinstance(detail_result, Exception):
+                        logger.warning(
+                            f"  Could not fetch detail for PR #{gh_pr['number']}: {detail_result}"
+                        )
+                    else:
+                        pr.additions = detail_result.get("additions", 0)
+                        pr.deletions = detail_result.get("deletions", 0)
+                        pr.changed_files = detail_result.get("changed_files", 0)
+                        pr.mergeable_state = detail_result.get("mergeable_state")
+
+                    if isinstance(runs_result, Exception):
+                        logger.warning(
+                            f"  Could not fetch workflow runs for PR #{gh_pr['number']}: "
+                            f"{runs_result}"
+                        )
+                    else:
                         checks = [
                             {
                                 "name": r["name"],
@@ -168,21 +183,59 @@ class SyncService:
                                 "conclusion": r.get("conclusion"),
                                 "details_url": r.get("html_url"),
                             }
-                            for r in runs
+                            for r in runs_result
                         ]
                         await self._upsert_check_runs(session, pr.id, checks)
-                    except Exception as exc:
-                        logger.warning(
-                            f"  Could not fetch workflow runs for PR #{gh_pr['number']}: {exc}"
-                        )
 
-                    try:
-                        reviews = await github.get_reviews(owner, name, gh_pr["number"])
-                        await self._upsert_reviews(session, pr.id, reviews)
-                    except Exception as exc:
+                    if isinstance(reviews_result, Exception):
                         logger.warning(
-                            f"  Could not fetch reviews for PR #{gh_pr['number']}: {exc}"
+                            f"  Could not fetch reviews for PR #{gh_pr['number']}: {reviews_result}"
                         )
+                    else:
+                        await self._upsert_reviews(session, pr.id, reviews_result)
+
+                # Detect stale PRs: open in DB but not returned by GitHub
+                db_open_prs = (
+                    (
+                        await session.execute(
+                            select(PullRequest).where(
+                                PullRequest.repo_id == repo_id,
+                                PullRequest.state == "open",
+                            )
+                        )
+                    )
+                    .scalars()
+                    .all()
+                )
+                stale_prs = [pr for pr in db_open_prs if pr.number not in fetched_pr_numbers]
+
+                if stale_prs:
+                    logger.info(f"  Updating {len(stale_prs)} stale PR(s) for {owner}/{name}")
+                    sem = asyncio.Semaphore(5)
+
+                    async def fetch_stale(pr_number: int) -> dict | None:
+                        async with sem:
+                            try:
+                                return await github.get_pull(owner, name, pr_number)
+                            except Exception as exc:
+                                logger.warning(
+                                    f"  Could not fetch stale PR #{pr_number}: {exc}"
+                                )
+                                return None
+
+                    stale_details = await asyncio.gather(
+                        *(fetch_stale(pr.number) for pr in stale_prs)
+                    )
+
+                    for pr, detail in zip(stale_prs, stale_details, strict=True):
+                        if detail is None:
+                            continue
+                        pr.state = detail["state"]
+                        pr.merged_at = parse_gh_datetime(detail.get("merged_at"))
+                        pr.updated_at = (
+                            parse_gh_datetime(detail.get("updated_at")) or datetime.now(UTC)
+                        )
+                        pr.last_synced_at = datetime.now(UTC)
 
                 repo = await session.get(TrackedRepo, repo_id)
                 if repo:
