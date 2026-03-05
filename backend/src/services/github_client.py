@@ -95,7 +95,7 @@ class GitHubClient:
         """List all repos in an organization."""
         return await self._get_paginated(
             f"/orgs/{org}/repos",
-            params={"type": "all", "sort": "full_name", "direction": "asc"},
+            params={"type": "all", "sort": "pushed", "direction": "desc"},
         )
 
     async def get_repo(self, owner: str, repo: str) -> dict[str, Any]:

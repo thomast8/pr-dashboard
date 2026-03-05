@@ -16,6 +16,7 @@ class AvailableRepo(BaseModel):
     full_name: str
     description: str | None = None
     private: bool = False
+    pushed_at: str | None = None
 
 
 class RepoSummary(BaseModel):

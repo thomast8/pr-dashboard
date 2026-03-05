@@ -112,6 +112,7 @@ export interface AvailableRepo {
   full_name: string;
   description: string | null;
   private: boolean;
+  pushed_at: string | null;
 }
 
 // ── API functions ────────────────────────────────

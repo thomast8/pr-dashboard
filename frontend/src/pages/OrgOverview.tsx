@@ -6,6 +6,21 @@ import { useState, useMemo } from 'react';
 import { api, type RepoSummary } from '../api/client';
 import styles from './OrgOverview.module.css';
 
+function timeAgo(dateStr: string | null): string {
+  if (!dateStr) return '';
+  const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
+  if (seconds < 60) return 'just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `${months}mo ago`;
+  return `${Math.floor(months / 12)}y ago`;
+}
+
 function healthColor(repo: RepoSummary): string {
   if (repo.failing_ci_count > 0) return 'var(--ci-fail)';
   if (repo.stale_pr_count > 0) return 'var(--ci-pending)';
@@ -71,6 +86,9 @@ function RepoBrowser({ onClose }: { onClose: () => void }) {
                   {repo.name}
                   {repo.private && (
                     <span className={styles.privateBadge}>private</span>
+                  )}
+                  {repo.pushed_at && (
+                    <span className={styles.pushedAt}>{timeAgo(repo.pushed_at)}</span>
                   )}
                 </span>
                 {repo.description && (

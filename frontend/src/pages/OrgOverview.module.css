@@ -230,6 +230,12 @@
   gap: 0.5rem;
 }
 
+.pushedAt {
+  font-size: 0.65rem;
+  font-weight: 400;
+  color: var(--text-dim);
+}
+
 .privateBadge {
   font-size: 0.65rem;
   font-weight: 500;

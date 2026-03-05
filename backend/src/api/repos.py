@@ -103,16 +103,19 @@ async def list_available_repos(
     finally:
         await gh.close()
 
-    return [
+    available = [
         AvailableRepo(
             name=r["name"],
             full_name=r["full_name"],
             description=r.get("description"),
             private=r.get("private", False),
+            pushed_at=r.get("pushed_at"),
         )
         for r in org_repos
         if not r.get("archived") and r["full_name"] not in tracked_set
     ]
+    available.sort(key=lambda r: r.pushed_at or "", reverse=True)
+    return available
 
 
 @router.post("", response_model=RepoDetail, status_code=201)
