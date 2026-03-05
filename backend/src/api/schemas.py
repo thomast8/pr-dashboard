@@ -4,6 +4,36 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
+# ── Spaces ───────────────────────────────────────────────────
+
+
+class SpaceCreate(BaseModel):
+    name: str
+    slug: str
+    space_type: str = "org"  # "org" or "user"
+    base_url: str = "https://api.github.com"
+    token: str = ""  # PAT or "use_oauth"
+
+
+class SpaceUpdate(BaseModel):
+    name: str | None = None
+    slug: str | None = None
+    space_type: str | None = None
+    base_url: str | None = None
+    token: str | None = None
+
+
+class SpaceOut(BaseModel):
+    id: int
+    name: str
+    slug: str
+    space_type: str
+    base_url: str
+    is_active: bool
+    has_token: bool
+    created_at: datetime
+
+
 # ── Repos ────────────────────────────────────────────────────
 
 
@@ -32,6 +62,8 @@ class RepoSummary(BaseModel):
     failing_ci_count: int = 0
     stale_pr_count: int = 0
     stack_count: int = 0
+    space_id: int | None = None
+    space_name: str | None = None
 
 
 class RepoDetail(BaseModel):

@@ -16,6 +16,7 @@ from src.api.events import router as events_router
 from src.api.progress import router as progress_router
 from src.api.pulls import router as pulls_router
 from src.api.repos import router as repos_router
+from src.api.spaces import router as spaces_router
 from src.api.stacks import router as stacks_router
 from src.api.team import router as team_router
 from src.config.settings import settings
@@ -63,6 +64,7 @@ app.add_middleware(
 # Register API routers
 app.include_router(auth_router)
 app.include_router(repos_router)
+app.include_router(spaces_router)
 app.include_router(pulls_router)
 app.include_router(team_router)
 app.include_router(progress_router)
