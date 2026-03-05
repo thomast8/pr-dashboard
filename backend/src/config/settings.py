@@ -1,6 +1,6 @@
 """Configuration settings for the PR Dashboard."""
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -26,6 +26,15 @@ class Settings(BaseSettings):
         description="Async SQLAlchemy database URL",
     )
     database_echo: bool = Field(default=False, description="Echo SQL statements")
+
+    @model_validator(mode="after")
+    def _fix_database_url_scheme(self) -> "Settings":
+        """Railway provides postgresql://, asyncpg needs postgresql+asyncpg://."""
+        if self.database_url.startswith("postgresql://"):
+            self.database_url = self.database_url.replace(
+                "postgresql://", "postgresql+asyncpg://", 1
+            )
+        return self
 
     # Sync
     sync_interval_seconds: int = Field(
