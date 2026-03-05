@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+dist/
+build/
+
+# Node
+node_modules/
+frontend/dist/
+
+# Environment
+.env
+*.env.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+logs/
+*.log
+
+# Database
+*.db
+*.sqlite3
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Alembic
+backend/alembic/versions/__pycache__/
+
+# GitNexus
+.gitnexus/

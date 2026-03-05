@@ -1,0 +1,47 @@
+.shell {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 100vh;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 0.75rem 1.5rem;
+  border-bottom: 1px solid var(--border-default);
+  background: var(--bg-surface);
+}
+
+.logo {
+  color: var(--accent-gold);
+  font-weight: 700;
+  font-size: 1.1rem;
+  text-decoration: none;
+}
+.logo:hover { text-decoration: none; opacity: 0.9; }
+
+.nav {
+  display: flex;
+  gap: 1rem;
+}
+.nav a {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-md);
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+.nav a:hover {
+  color: var(--text-primary);
+  background: var(--bg-elevated);
+  text-decoration: none;
+}
+.nav a.active {
+  color: var(--accent-gold);
+}
+
+.main {
+  overflow: auto;
+  padding: 1.5rem;
+}

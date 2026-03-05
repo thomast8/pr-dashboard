@@ -1,0 +1,112 @@
+.graphArea {
+  overflow: auto;
+  padding: 0.5rem 0;
+}
+
+.graphContainer {
+  position: relative;
+}
+
+.svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.arrowPath {
+  fill: none;
+  stroke: var(--border-hover);
+  stroke-width: 2;
+}
+
+/* PR Cards */
+.card {
+  position: absolute;
+  background: var(--bg-surface);
+  border: 2px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: 0.4rem 0.6rem;
+  cursor: pointer;
+  z-index: 2;
+  user-select: none;
+  transition: border-color var(--transition-normal), box-shadow var(--transition-normal), transform 0.12s;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.card:hover {
+  border-color: var(--accent-blue);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 12px rgba(97, 218, 251, 0.1);
+}
+
+.cardSelected {
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 0 2px rgba(97, 218, 251, 0.25), 0 4px 16px rgba(97, 218, 251, 0.12);
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-bottom: 0.15rem;
+}
+
+.position {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: var(--accent-green-bg);
+  color: var(--accent-gold);
+  font-size: 0.58rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.prNumber {
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+}
+.prNumber:hover { color: var(--accent-blue); text-decoration: none; }
+
+.draftBadge {
+  font-size: 0.48rem;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--ci-neutral);
+  color: #fff;
+  font-weight: 600;
+  text-transform: uppercase;
+  margin-left: auto;
+}
+
+.cardTitle {
+  font-size: 0.68rem;
+  color: var(--text-secondary);
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.cardFooter {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: auto;
+}
+
+.cardDiff {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+}
+.add { color: var(--accent-green); margin-right: 0.2rem; }
+.del { color: var(--accent-red); }

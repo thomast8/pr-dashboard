@@ -1,0 +1,119 @@
+.panel {
+  width: 380px;
+  min-width: 380px;
+  border-left: 1px solid var(--border-default);
+  background: var(--bg-surface);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--border-default);
+}
+
+.closeBtn {
+  float: right;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 0 0.3rem;
+}
+.closeBtn:hover { color: var(--text-primary); }
+
+.title {
+  font-size: 0.95rem;
+  color: var(--accent-gold);
+  margin-bottom: 0.4rem;
+  line-height: 1.4;
+}
+.title a { color: var(--accent-blue); }
+
+.branch {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.branchName {
+  background: var(--accent-green-bg);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--accent-teal);
+}
+
+.arrow { color: var(--text-dim); }
+
+.loading { color: var(--text-muted); font-size: 0.85rem; }
+
+.body {
+  padding: 1rem 1.25rem;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.section {
+  margin-bottom: 1.25rem;
+}
+
+.section h3 {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-bottom: 0.4rem;
+  border-bottom: 1px solid var(--border-default);
+  padding-bottom: 0.2rem;
+}
+
+.diffStats {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.85rem;
+}
+.files { color: var(--accent-teal); }
+.add { color: var(--accent-green); }
+.del { color: var(--accent-red); }
+
+.checksTable {
+  width: 100%;
+  font-size: 0.75rem;
+  border-collapse: collapse;
+}
+.checksTable td {
+  padding: 0.25rem 0.35rem;
+  border-bottom: 1px solid var(--bg-base);
+  vertical-align: middle;
+}
+.checksTable a { color: var(--accent-blue); }
+.conclusion { color: var(--text-dim); }
+
+.empty {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+.reviewList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.reviewItem {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  padding: 0.25rem 0;
+}
+
+.reviewer { color: var(--accent-teal); }
+.reviewState { color: var(--text-dim); font-size: 0.72rem; margin-left: auto; }

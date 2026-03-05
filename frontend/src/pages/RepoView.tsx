@@ -1,0 +1,168 @@
+/** Level 2 — Repo view showing all open PRs in a filterable table. */
+
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Link, useParams } from 'react-router-dom';
+import { useState } from 'react';
+import { api, type PRSummary, type RepoSummary } from '../api/client';
+import { StatusDot } from '../components/StatusDot';
+import { PRDetailPanel } from '../components/PRDetailPanel';
+import { useStore } from '../store/useStore';
+import styles from './RepoView.module.css';
+
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const hours = Math.floor(diff / 3600000);
+  if (hours < 1) return 'just now';
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+export function RepoView() {
+  const { owner, name } = useParams<{ owner: string; name: string }>();
+  const qc = useQueryClient();
+  const { selectedPrId, selectPr } = useStore();
+
+  const [authorFilter, setAuthorFilter] = useState('');
+  const [ciFilter, setCiFilter] = useState('');
+
+  // Get repo ID from the repos list
+  const { data: repos } = useQuery({
+    queryKey: ['repos'],
+    queryFn: api.listRepos,
+  });
+  const repo = repos?.find((r: RepoSummary) => r.owner === owner && r.name === name);
+
+  const { data: pulls, isLoading } = useQuery({
+    queryKey: ['pulls', repo?.id],
+    queryFn: () => api.listPulls(repo!.id),
+    enabled: !!repo,
+    refetchInterval: 30_000,
+  });
+
+  const { data: stacks } = useQuery({
+    queryKey: ['stacks', repo?.id],
+    queryFn: () => api.listStacks(repo!.id),
+    enabled: !!repo,
+  });
+
+  const syncMutation = useMutation({
+    mutationFn: () => api.syncRepo(repo!.id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['pulls', repo?.id] });
+      qc.invalidateQueries({ queryKey: ['stacks', repo?.id] });
+    },
+  });
+
+  // Build stack lookup
+  const stackMap = new Map<number, { stackId: number; name: string | null }>();
+  stacks?.forEach((s) =>
+    s.members.forEach((m) => stackMap.set(m.pr.id, { stackId: s.id, name: s.name }))
+  );
+
+  // Filter PRs
+  let filtered = pulls || [];
+  if (authorFilter) filtered = filtered.filter((p: PRSummary) => p.author === authorFilter);
+  if (ciFilter) filtered = filtered.filter((p: PRSummary) => p.ci_status === ciFilter);
+
+  // Unique authors for filter dropdown
+  const authors = [...new Set(pulls?.map((p: PRSummary) => p.author) || [])].sort();
+
+  if (!repo) return <div className={styles.loading}>Loading...</div>;
+
+  return (
+    <div className={styles.container}>
+      <div className={styles.content}>
+        <div className={styles.titleRow}>
+          <div>
+            <Link to="/" className={styles.breadcrumb}>Repos</Link>
+            <span className={styles.breadcrumbSep}>/</span>
+            <h1 className={styles.title}>{owner}/{name}</h1>
+          </div>
+          <button
+            onClick={() => syncMutation.mutate()}
+            disabled={syncMutation.isPending}
+            className={styles.syncBtn}
+          >
+            {syncMutation.isPending ? 'Syncing...' : 'Sync now'}
+          </button>
+        </div>
+
+        <div className={styles.filters}>
+          <select value={authorFilter} onChange={(e) => setAuthorFilter(e.target.value)} className={styles.select}>
+            <option value="">All authors</option>
+            {authors.map((a) => <option key={a} value={a}>{a}</option>)}
+          </select>
+          <select value={ciFilter} onChange={(e) => setCiFilter(e.target.value)} className={styles.select}>
+            <option value="">All CI</option>
+            <option value="success">Passing</option>
+            <option value="failure">Failing</option>
+            <option value="pending">Pending</option>
+          </select>
+        </div>
+
+        {isLoading ? (
+          <div className={styles.loading}>Loading PRs...</div>
+        ) : (
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th>PR</th>
+                <th>Title</th>
+                <th>Author</th>
+                <th>CI</th>
+                <th>Review</th>
+                <th>Diff</th>
+                <th>Updated</th>
+                <th>Stack</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((pr: PRSummary) => {
+                const stack = stackMap.get(pr.id);
+                return (
+                  <tr
+                    key={pr.id}
+                    className={`${styles.row} ${selectedPrId === pr.id ? styles.selected : ''}`}
+                    onClick={() => selectPr(pr.id)}
+                  >
+                    <td className={styles.prNum}>
+                      <a href={pr.html_url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
+                        #{pr.number}
+                      </a>
+                      {pr.draft && <span className={styles.draftBadge}>Draft</span>}
+                    </td>
+                    <td className={styles.prTitle}>{pr.title}</td>
+                    <td className={styles.author}>{pr.author}</td>
+                    <td><StatusDot status={pr.ci_status} title={pr.ci_status} /></td>
+                    <td><StatusDot status={pr.review_state} title={pr.review_state} /></td>
+                    <td className={styles.diff}>
+                      <span className={styles.add}>+{pr.additions}</span>
+                      <span className={styles.del}>-{pr.deletions}</span>
+                    </td>
+                    <td className={styles.updated}>{timeAgo(pr.updated_at)}</td>
+                    <td>
+                      {stack && (
+                        <Link
+                          to={`/repos/${owner}/${name}/stacks/${stack.stackId}`}
+                          className={styles.stackLink}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          View stack
+                        </Link>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {selectedPrId && repo && (
+        <PRDetailPanel repoId={repo.id} prId={selectedPrId} onClose={() => selectPr(null)} />
+      )}
+    </div>
+  );
+}

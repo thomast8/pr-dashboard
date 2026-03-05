@@ -1,0 +1,204 @@
+"""Database models for the PR Dashboard."""
+
+from datetime import datetime
+
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from src.db.base import Base
+
+
+class TrackedRepo(Base):
+    __tablename__ = "tracked_repos"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    owner: Mapped[str] = mapped_column(String(255), nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    full_name: Mapped[str] = mapped_column(String(512), nullable=False, unique=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    default_branch: Mapped[str] = mapped_column(String(255), default="main")
+    last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    pull_requests: Mapped[list["PullRequest"]] = relationship(back_populates="repo")
+    stacks: Mapped[list["PRStack"]] = relationship(back_populates="repo")
+
+
+class PullRequest(Base):
+    __tablename__ = "pull_requests"
+    __table_args__ = (UniqueConstraint("repo_id", "number", name="uq_repo_pr_number"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    repo_id: Mapped[int] = mapped_column(ForeignKey("tracked_repos.id", ondelete="CASCADE"))
+    number: Mapped[int] = mapped_column(Integer, nullable=False)
+    title: Mapped[str] = mapped_column(String(1024), nullable=False)
+    state: Mapped[str] = mapped_column(String(20), nullable=False)  # open, closed, merged
+    draft: Mapped[bool] = mapped_column(Boolean, default=False)
+    head_ref: Mapped[str] = mapped_column(String(255), nullable=False)
+    base_ref: Mapped[str] = mapped_column(String(255), nullable=False)
+    author: Mapped[str] = mapped_column(String(255), nullable=False)
+    additions: Mapped[int] = mapped_column(Integer, default=0)
+    deletions: Mapped[int] = mapped_column(Integer, default=0)
+    changed_files: Mapped[int] = mapped_column(Integer, default=0)
+    mergeable_state: Mapped[str | None] = mapped_column(String(50))
+    html_url: Mapped[str] = mapped_column(String(1024), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    merged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_synced_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    repo: Mapped["TrackedRepo"] = relationship(back_populates="pull_requests")
+    check_runs: Mapped[list["CheckRun"]] = relationship(
+        back_populates="pull_request", cascade="all, delete-orphan"
+    )
+    reviews: Mapped[list["Review"]] = relationship(
+        back_populates="pull_request", cascade="all, delete-orphan"
+    )
+    stack_memberships: Mapped[list["PRStackMembership"]] = relationship(
+        back_populates="pull_request",
+        foreign_keys="PRStackMembership.pull_request_id",
+    )
+    user_progress: Mapped[list["UserProgress"]] = relationship(
+        back_populates="pull_request", cascade="all, delete-orphan"
+    )
+    quality_snapshots: Mapped[list["QualitySnapshot"]] = relationship(
+        back_populates="pull_request", cascade="all, delete-orphan"
+    )
+
+
+class CheckRun(Base):
+    __tablename__ = "check_runs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    pull_request_id: Mapped[int] = mapped_column(
+        ForeignKey("pull_requests.id", ondelete="CASCADE")
+    )
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    status: Mapped[str] = mapped_column(String(50), nullable=False)
+    conclusion: Mapped[str | None] = mapped_column(String(50))  # success, failure, etc.
+    details_url: Mapped[str | None] = mapped_column(String(1024))
+    last_synced_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    pull_request: Mapped["PullRequest"] = relationship(back_populates="check_runs")
+
+
+class Review(Base):
+    __tablename__ = "reviews"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    pull_request_id: Mapped[int] = mapped_column(
+        ForeignKey("pull_requests.id", ondelete="CASCADE")
+    )
+    reviewer: Mapped[str] = mapped_column(String(255), nullable=False)
+    state: Mapped[str] = mapped_column(String(50), nullable=False)
+    submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    pull_request: Mapped["PullRequest"] = relationship(back_populates="reviews")
+
+
+class PRStack(Base):
+    __tablename__ = "pr_stacks"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    repo_id: Mapped[int] = mapped_column(ForeignKey("tracked_repos.id", ondelete="CASCADE"))
+    name: Mapped[str | None] = mapped_column(String(255))
+    root_pr_id: Mapped[int | None] = mapped_column(ForeignKey("pull_requests.id"))
+    detected_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    repo: Mapped["TrackedRepo"] = relationship(back_populates="stacks")
+    root_pr: Mapped["PullRequest | None"] = relationship(foreign_keys=[root_pr_id])
+    memberships: Mapped[list["PRStackMembership"]] = relationship(
+        back_populates="stack", cascade="all, delete-orphan"
+    )
+
+
+class PRStackMembership(Base):
+    __tablename__ = "pr_stack_memberships"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    stack_id: Mapped[int] = mapped_column(ForeignKey("pr_stacks.id", ondelete="CASCADE"))
+    pull_request_id: Mapped[int] = mapped_column(
+        ForeignKey("pull_requests.id", ondelete="CASCADE")
+    )
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+    parent_pr_id: Mapped[int | None] = mapped_column(ForeignKey("pull_requests.id"))
+
+    stack: Mapped["PRStack"] = relationship(back_populates="memberships")
+    pull_request: Mapped["PullRequest"] = relationship(
+        foreign_keys=[pull_request_id], back_populates="stack_memberships"
+    )
+    parent_pr: Mapped["PullRequest | None"] = relationship(foreign_keys=[parent_pr_id])
+
+
+class TeamMember(Base):
+    __tablename__ = "team_members"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    display_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    github_login: Mapped[str | None] = mapped_column(String(255))
+    email: Mapped[str | None] = mapped_column(String(255))
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    progress: Mapped[list["UserProgress"]] = relationship(back_populates="team_member")
+
+
+class UserProgress(Base):
+    __tablename__ = "user_progress"
+    __table_args__ = (
+        UniqueConstraint("pull_request_id", "team_member_id", name="uq_pr_member_progress"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    pull_request_id: Mapped[int] = mapped_column(
+        ForeignKey("pull_requests.id", ondelete="CASCADE")
+    )
+    team_member_id: Mapped[int] = mapped_column(
+        ForeignKey("team_members.id", ondelete="CASCADE")
+    )
+    reviewed: Mapped[bool] = mapped_column(Boolean, default=False)
+    approved: Mapped[bool] = mapped_column(Boolean, default=False)
+    notes: Mapped[str | None] = mapped_column(Text)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    pull_request: Mapped["PullRequest"] = relationship(back_populates="user_progress")
+    team_member: Mapped["TeamMember"] = relationship(back_populates="progress")
+
+
+class QualitySnapshot(Base):
+    __tablename__ = "quality_snapshots"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    pull_request_id: Mapped[int] = mapped_column(
+        ForeignKey("pull_requests.id", ondelete="CASCADE")
+    )
+    pytest_passed: Mapped[int] = mapped_column(Integer, default=0)
+    pytest_failed: Mapped[int] = mapped_column(Integer, default=0)
+    pytest_errors: Mapped[int] = mapped_column(Integer, default=0)
+    mypy_errors: Mapped[int] = mapped_column(Integer, default=0)
+    snapshot_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    pull_request: Mapped["PullRequest"] = relationship(back_populates="quality_snapshots")

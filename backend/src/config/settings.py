@@ -1,0 +1,51 @@
+"""Configuration settings for the PR Dashboard."""
+
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    """Application settings loaded from environment variables."""
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+    )
+
+    # GitHub
+    github_token: str = Field(default="", description="GitHub PAT for API access")
+    github_org: str = Field(
+        default="kyndryl-agentic-ai", description="Default GitHub org to track"
+    )
+
+    # Database
+    database_url: str = Field(
+        default="postgresql+asyncpg://postgres:postgres@localhost:5432/pr_dashboard",
+        description="Async SQLAlchemy database URL",
+    )
+    database_echo: bool = Field(default=False, description="Echo SQL statements")
+
+    # Sync
+    sync_interval_seconds: int = Field(
+        default=180, description="Seconds between GitHub sync cycles"
+    )
+
+    # Auth
+    dashboard_password: str = Field(default="", description="Dashboard login password")
+    secret_key: str = Field(
+        default="change-me-in-production",
+        description="Secret key for signing session cookies",
+    )
+    session_max_age_seconds: int = Field(
+        default=7 * 24 * 3600, description="Session cookie lifetime"
+    )
+
+    # Server
+    host: str = Field(default="0.0.0.0", description="Server bind host")
+    port: int = Field(default=8000, description="Server bind port")
+    log_level: str = Field(default="INFO", description="Logging level")
+
+
+settings = Settings()

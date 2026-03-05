@@ -1,0 +1,151 @@
+.titleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+}
+
+.title {
+  color: var(--accent-gold);
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.loading {
+  color: var(--text-muted);
+  padding: 2rem;
+  text-align: center;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+.card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: 1rem 1.25rem;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color var(--transition-normal), transform var(--transition-fast);
+}
+.card:hover {
+  border-color: var(--accent-blue);
+  transform: translateY(-2px);
+  text-decoration: none;
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.healthDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.repoName {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--accent-teal);
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.stat {
+  text-align: center;
+}
+
+.statValue {
+  display: block;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.statLabel {
+  font-size: 0.65rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.synced {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  text-align: right;
+}
+
+/* Add repo card */
+.addCard {
+  background: var(--bg-surface);
+  border: 1px dashed var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.addTitle {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.addForm {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.input {
+  flex: 1;
+  padding: 0.4rem 0.6rem;
+  background: var(--bg-input);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.82rem;
+  outline: none;
+}
+.input:focus {
+  border-color: var(--accent-blue);
+}
+
+.addBtn {
+  padding: 0.4rem 1rem;
+  background: var(--accent-green-bg);
+  color: var(--accent-teal);
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.82rem;
+  transition: background var(--transition-fast);
+}
+.addBtn:hover:not(:disabled) {
+  background: var(--accent-green);
+}
+.addBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.error {
+  color: var(--accent-red);
+  font-size: 0.75rem;
+}
