@@ -83,6 +83,21 @@
   letter-spacing: 0.05em;
 }
 
+.statPlaceholder {
+  display: inline-block;
+  width: 1.2rem;
+  height: 0.7rem;
+  border-radius: var(--radius-md);
+  background: var(--text-dim);
+  opacity: 0.3;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.15; }
+  50% { opacity: 0.4; }
+}
+
 .synced {
   font-size: 0.7rem;
   color: var(--text-dim);

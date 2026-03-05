@@ -137,28 +137,32 @@ export function OrgOverview() {
             <div className={styles.cardHeader}>
               <span
                 className={styles.healthDot}
-                style={{ background: healthColor(repo) }}
+                style={{ background: repo.last_synced_at ? healthColor(repo) : 'var(--text-dim)' }}
               />
               <span className={styles.repoName}>{repo.full_name}</span>
             </div>
             <div className={styles.stats}>
               <div className={styles.stat}>
-                <span className={styles.statValue}>{repo.open_pr_count}</span>
+                <span className={styles.statValue}>
+                  {repo.last_synced_at ? repo.open_pr_count : <span className={styles.statPlaceholder} />}
+                </span>
                 <span className={styles.statLabel}>Open PRs</span>
               </div>
               <div className={styles.stat}>
-                <span className={styles.statValue} style={{ color: repo.failing_ci_count > 0 ? 'var(--ci-fail)' : undefined }}>
-                  {repo.failing_ci_count}
+                <span className={styles.statValue} style={{ color: repo.last_synced_at && repo.failing_ci_count > 0 ? 'var(--ci-fail)' : undefined }}>
+                  {repo.last_synced_at ? repo.failing_ci_count : <span className={styles.statPlaceholder} />}
                 </span>
                 <span className={styles.statLabel}>Failing CI</span>
               </div>
               <div className={styles.stat}>
-                <span className={styles.statValue}>{repo.stack_count}</span>
+                <span className={styles.statValue}>
+                  {repo.last_synced_at ? repo.stack_count : <span className={styles.statPlaceholder} />}
+                </span>
                 <span className={styles.statLabel}>Stacks</span>
               </div>
               <div className={styles.stat}>
-                <span className={styles.statValue} style={{ color: repo.stale_pr_count > 0 ? 'var(--ci-pending)' : undefined }}>
-                  {repo.stale_pr_count}
+                <span className={styles.statValue} style={{ color: repo.last_synced_at && repo.stale_pr_count > 0 ? 'var(--ci-pending)' : undefined }}>
+                  {repo.last_synced_at ? repo.stale_pr_count : <span className={styles.statPlaceholder} />}
                 </span>
                 <span className={styles.statLabel}>Stale</span>
               </div>
