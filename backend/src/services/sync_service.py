@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.engine import async_session_factory
 from src.models.tables import CheckRun, PullRequest, Review, TrackedRepo
+from src.services.events import broadcast_event
 from src.services.github_client import GitHubClient, parse_gh_datetime
 from src.services.stack_detector import detect_stacks
 
@@ -115,6 +116,7 @@ class SyncService:
             if stacks:
                 logger.info(f"  Detected {len(stacks)} stack(s) for {owner}/{name}")
 
+        await broadcast_event("sync_complete", {"repo_id": repo_id, "owner": owner, "name": name})
         logger.info(f"  Sync complete for {owner}/{name}")
 
     async def _upsert_pr(

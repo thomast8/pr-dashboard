@@ -1,5 +1,6 @@
 """API routes for tracked repositories."""
 
+import asyncio
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -152,6 +153,20 @@ async def add_repo(
     await session.commit()
     await session.refresh(repo)
     logger.info(f"Now tracking {full_name}")
+
+    # Kick off background sync so counters populate immediately (SSE broadcast on completion)
+    async def _background_sync(repo_id: int, owner: str, name: str) -> None:
+        from src.services.sync_service import SyncService
+
+        svc = SyncService()
+        try:
+            await svc.sync_repo(repo_id, owner, name)
+        except Exception:
+            logger.exception(f"Background sync failed for {owner}/{name}")
+        finally:
+            await svc.github.close()
+
+    asyncio.create_task(_background_sync(repo.id, repo.owner, repo.name))
 
     return RepoDetail(
         id=repo.id,

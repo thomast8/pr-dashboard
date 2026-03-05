@@ -1,10 +1,12 @@
 /** App shell — sidebar nav + header + content area. */
 
 import { Link, Outlet, useLocation } from 'react-router-dom';
+import { useSSE } from '../api/useSSE';
 import styles from './Shell.module.css';
 
 export function Shell() {
   const location = useLocation();
+  useSSE();
   const isHome = location.pathname === '/';
 
   return (
