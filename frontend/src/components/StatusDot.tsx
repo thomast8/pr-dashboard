@@ -9,13 +9,15 @@ interface Props {
 }
 
 const STATUS_COLORS: Record<string, string> = {
+  // CI
   success: 'var(--ci-pass)',
   failure: 'var(--ci-fail)',
   pending: 'var(--ci-pending)',
   action_required: 'var(--ci-fail)',
-  approved: 'var(--accent-blue)',
-  changes_requested: 'var(--ci-fail)',
-  reviewed: 'var(--ci-pending)',
+  // Review — uses unified review tokens
+  approved: 'var(--review-approved)',
+  changes_requested: 'var(--review-changes)',
+  reviewed: 'var(--review-commented)',
   unknown: 'var(--ci-neutral)',
   none: 'var(--ci-neutral)',
 };

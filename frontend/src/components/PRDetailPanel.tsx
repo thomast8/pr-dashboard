@@ -95,7 +95,7 @@ export function PRDetailPanel({ repoId, prId, onClose }: Props) {
                   <div key={r.id} className={styles.reviewItem}>
                     <StatusDot status={r.state.toLowerCase()} size={7} />
                     <span className={styles.reviewer}>{r.reviewer}</span>
-                    <span className={styles.reviewState}>{r.state}</span>
+                    <span className={`${styles.reviewState} ${r.state === 'APPROVED' ? styles.reviewApproved : r.state === 'CHANGES_REQUESTED' ? styles.reviewChanges : styles.reviewCommented}`}>{r.state}</span>
                   </div>
                 ))}
               </div>

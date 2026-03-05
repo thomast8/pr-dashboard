@@ -46,7 +46,7 @@
   font-family: inherit;
   font-size: 0.8rem;
 }
-.syncBtn:hover:not(:disabled) { background: var(--accent-green); }
+.syncBtn:hover:not(:disabled) { background: var(--accent-green-dim); }
 .syncBtn:disabled { opacity: 0.5; }
 
 .filters {

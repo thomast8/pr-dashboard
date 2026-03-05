@@ -267,7 +267,7 @@
   transition: background var(--transition-fast);
 }
 .trackBtn:hover:not(:disabled) {
-  background: var(--accent-green);
+  background: var(--accent-green-dim);
 }
 .trackBtn:disabled {
   opacity: 0.5;

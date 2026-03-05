@@ -79,7 +79,7 @@
   font-size: 0.85rem;
 }
 .files { color: var(--accent-teal); }
-.add { color: var(--accent-green); }
+.add { color: var(--accent-green-dim); }
 .del { color: var(--accent-red); }
 
 .checksTable {
@@ -116,11 +116,14 @@
 }
 
 .reviewer { color: var(--accent-teal); }
-.reviewState { color: var(--text-dim); font-size: 0.72rem; margin-left: auto; }
+.reviewState { font-size: 0.72rem; margin-left: auto; }
+.reviewApproved { color: var(--review-approved); }
+.reviewChanges { color: var(--review-changes); }
+.reviewCommented { color: var(--review-commented); }
 
 .rebaseWarning {
   font-size: 0.65rem;
-  color: #b58900;
+  color: var(--review-rebased);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.03em;

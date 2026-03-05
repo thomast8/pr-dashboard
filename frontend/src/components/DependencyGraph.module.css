@@ -108,7 +108,7 @@
   font-family: var(--font-mono);
   font-size: 0.62rem;
 }
-.add { color: var(--accent-green); margin-right: 0.2rem; }
+.add { color: var(--accent-green-dim); margin-right: 0.2rem; }
 .del { color: var(--accent-red); }
 
 /* Standalone PRs grid */
@@ -165,18 +165,22 @@
   opacity: 0.55;
 }
 
-/* Review state border indicators */
+/* Review state card styling — uses unified review tokens */
 .borderApproved {
-  border-left: 4px solid var(--accent-green);
+  border-color: var(--review-approved-border);
+  background: var(--review-approved-bg);
 }
 .borderRebased {
-  border-left: 4px solid #b58900;
+  border-color: var(--review-rebased-border);
+  background: var(--review-rebased-bg);
 }
 .borderChanges {
-  border-left: 4px solid var(--accent-red);
+  border-color: var(--review-changes-border);
+  background: var(--review-changes-bg);
 }
 .borderReviewed {
-  border-left: 4px solid var(--accent-teal);
+  border-color: var(--review-commented-border);
+  background: var(--review-commented-bg);
 }
 
 .badgeWarn {
@@ -188,6 +192,6 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
-  background: #b58900;
+  color: #000;
+  background: var(--review-rebased);
 }
