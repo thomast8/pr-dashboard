@@ -55,6 +55,9 @@ class Settings(BaseSettings):
         default="", description="GitHub OAuth App client secret"
     )
 
+    # Frontend URL (for OAuth redirect in dev; empty = same origin)
+    frontend_url: str = Field(default="", description="Frontend URL for redirects (dev only)")
+
     # Server
     host: str = Field(default="0.0.0.0", description="Server bind host")
     port: int = Field(default=8000, description="Server bind port")

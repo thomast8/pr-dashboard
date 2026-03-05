@@ -141,6 +141,7 @@ async def auth_status(request: Request) -> AuthStatus:
     return AuthStatus(
         authenticated=is_authenticated(request),
         auth_enabled=bool(settings.dashboard_password),
+        oauth_configured=bool(settings.github_oauth_client_id),
         user=user_info,
     )
 
@@ -175,7 +176,8 @@ async def github_oauth_start(request: Request) -> RedirectResponse:
         "scope": "repo read:org",
         "state": _sign("oauth"),
     }
-    url = f"{GITHUB_AUTHORIZE_URL}?{'&'.join(f'{k}={v}' for k, v in params.items())}"
+    from urllib.parse import urlencode
+    url = f"{GITHUB_AUTHORIZE_URL}?{urlencode(params)}"
     return RedirectResponse(url=url)
 
 
@@ -184,9 +186,11 @@ async def github_oauth_callback(
     code: str, state: str, request: Request
 ) -> RedirectResponse:
     """Exchange OAuth code for token, upsert user, set identity cookie."""
+    base = settings.frontend_url or ""
+
     # Verify state
     if _verify(state) != "oauth":
-        return RedirectResponse(url="/?error=invalid_state")
+        return RedirectResponse(url=f"{base}/?error=invalid_state")
 
     # Exchange code for access token
     async with httpx.AsyncClient() as client:
@@ -201,13 +205,13 @@ async def github_oauth_callback(
         )
         if resp.status_code != 200:
             logger.error(f"GitHub OAuth token exchange failed: {resp.text}")
-            return RedirectResponse(url="/?error=token_exchange_failed")
+            return RedirectResponse(url=f"{base}/?error=token_exchange_failed")
 
         token_data = resp.json()
         access_token = token_data.get("access_token")
         if not access_token:
             logger.error(f"No access_token in response: {token_data}")
-            return RedirectResponse(url="/?error=no_token")
+            return RedirectResponse(url=f"{base}/?error=no_token")
 
         # Fetch user info
         user_resp = await client.get(
@@ -219,7 +223,7 @@ async def github_oauth_callback(
         )
         if user_resp.status_code != 200:
             logger.error(f"GitHub user fetch failed: {user_resp.text}")
-            return RedirectResponse(url="/?error=user_fetch_failed")
+            return RedirectResponse(url=f"{base}/?error=user_fetch_failed")
 
         gh_user = user_resp.json()
 
@@ -258,13 +262,15 @@ async def github_oauth_callback(
     cookie_payload = f"{user_id}:{expires}"
     token = _sign(cookie_payload)
 
-    response = RedirectResponse(url="/")
+    redirect_url = f"{settings.frontend_url}/" if settings.frontend_url else "/"
+    is_https = not settings.frontend_url or settings.frontend_url.startswith("https")
+    response = RedirectResponse(url=redirect_url)
     response.set_cookie(
         GITHUB_COOKIE,
         token,
         max_age=settings.session_max_age_seconds,
         httponly=True,
-        secure=True,
+        secure=is_https,
         samesite="lax",
         path="/",
     )

@@ -38,7 +38,9 @@ export function SpaceManager({ onClose }: Props) {
         </div>
         <div className={styles.body}>
           <p className={styles.hint}>
-            A space is a GitHub connection (org or user account) with its own token.
+            Each space connects to a GitHub org or user account. You can track repos from
+            multiple sources — e.g. a work org, a personal account, and a side project org —
+            each with its own access token.
           </p>
 
           {spaces?.length === 0 && !showForm && (
@@ -185,41 +187,50 @@ function SpaceForm({
   return (
     <form className={styles.form} onSubmit={handleSubmit}>
       <h3 className={styles.formTitle}>{existing ? 'Edit space' : 'New space'}</h3>
+      <p className={styles.formHint}>
+        {existing
+          ? 'Update this GitHub connection.'
+          : 'Connect a GitHub org or user account to start tracking its repos.'}
+      </p>
       {error && <div className={styles.formError}>{error}</div>}
       <div className={styles.formRow}>
-        <label>Name</label>
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Kyndryl" />
+        <label>Display name</label>
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Work, Personal" />
       </div>
       <div className={styles.formRow}>
-        <label>Slug (org/user)</label>
+        <label>GitHub org or username</label>
         <input value={slug} onChange={(e) => setSlug(e.target.value)} placeholder="e.g. kyndryl-agentic-ai" />
       </div>
       <div className={styles.formRow}>
-        <label>Type</label>
+        <label>Account type</label>
         <select value={spaceType} onChange={(e) => setSpaceType(e.target.value)}>
           <option value="org">Organization</option>
-          <option value="user">User</option>
+          <option value="user">Personal account</option>
         </select>
       </div>
       <div className={styles.formRow}>
-        <label>Base URL</label>
+        <label>API base URL</label>
         <input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} />
+        <span className={styles.fieldHint}>Change only for GitHub Enterprise Server</span>
       </div>
       <div className={styles.formRow}>
-        <label>Token</label>
+        <label>Access token</label>
         {hasOAuth && baseUrl === 'https://api.github.com' && (
           <label className={styles.oauthToggle}>
             <input type="checkbox" checked={useOauth} onChange={(e) => setUseOauth(e.target.checked)} />
-            Use my GitHub token
+            Use my GitHub sign-in token
           </label>
         )}
         {!useOauth && (
-          <input
-            type="password"
-            value={token}
-            onChange={(e) => setToken(e.target.value)}
-            placeholder={existing ? '(unchanged)' : 'ghp_...'}
-          />
+          <>
+            <input
+              type="password"
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+              placeholder={existing ? '(unchanged)' : 'ghp_...'}
+            />
+            <span className={styles.fieldHint}>Fine-grained PAT with repo read access</span>
+          </>
         )}
       </div>
       <div className={styles.formActions}>

@@ -179,10 +179,22 @@
   color: var(--accent-gold);
 }
 
+.formHint {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  margin: 0 0 0.5rem 0;
+}
+
 .formError {
   font-size: 0.75rem;
   color: var(--accent-red);
   margin-bottom: 0.5rem;
+}
+
+.fieldHint {
+  font-size: 0.65rem;
+  color: var(--text-dim);
+  font-weight: 400;
 }
 
 .formRow {

@@ -204,4 +204,5 @@ class LoginRequest(BaseModel):
 class AuthStatus(BaseModel):
     authenticated: bool
     auth_enabled: bool
+    oauth_configured: bool = False
     user: dict | None = None

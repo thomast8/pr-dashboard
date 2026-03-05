@@ -4,6 +4,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { useState, useMemo } from 'react';
 import { api, type RepoSummary, type Space, type AvailableRepo } from '../api/client';
+import { useCurrentUser } from '../App';
+import { GitHubIcon } from '../components/GitHubIcon';
 import { Tooltip } from '../components/Tooltip';
 import styles from './OrgOverview.module.css';
 
@@ -119,8 +121,11 @@ function RepoBrowser({ space, onClose }: { space: Space; onClose: () => void }) 
   );
 }
 
+const BASE = import.meta.env.DEV ? 'http://localhost:8000' : '';
+
 export function OrgOverview() {
   const qc = useQueryClient();
+  const { user, oauthConfigured } = useCurrentUser();
   const { data: repos, isLoading: reposLoading } = useQuery({
     queryKey: ['repos'],
     queryFn: () => api.listRepos(),
@@ -182,8 +187,58 @@ export function OrgOverview() {
       </div>
 
       {!hasSpaces && (
-        <div className={styles.emptyState}>
-          No spaces configured. Open <strong>Spaces</strong> in the header to create your first GitHub connection.
+        <div className={styles.onboarding}>
+          <h2 className={styles.onboardingTitle}>Welcome to PR Dashboard</h2>
+          <p className={styles.onboardingDesc}>
+            Track pull requests across your GitHub orgs and personal repos, all in one place.
+          </p>
+          <div className={styles.steps}>
+            {oauthConfigured && (
+              <div className={`${styles.step} ${user ? styles.stepDone : ''}`}>
+                <span className={styles.stepNum}>{user ? '\u2713' : '1'}</span>
+                <div className={styles.stepContent}>
+                  <strong>Sign in with GitHub</strong>
+                  <span className={styles.stepDesc}>
+                    Links your identity for avatars, assignments, and optional token sharing.
+                  </span>
+                  {!user && (
+                    <button
+                      className={styles.githubBtn}
+                      onClick={() => { window.location.href = `${BASE}/api/auth/github`; }}
+                    >
+                      <GitHubIcon size={16} />
+                      Sign in with GitHub
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+            <div className={styles.step}>
+              <span className={styles.stepNum}>{oauthConfigured ? '2' : '1'}</span>
+              <div className={styles.stepContent}>
+                <strong>Create a space</strong>
+                <span className={styles.stepDesc}>
+                  A space connects to a GitHub org or user account with its own access token.
+                </span>
+                <button
+                  className={styles.stepBtn}
+                  onClick={() => window.dispatchEvent(new Event('open-spaces'))}
+                >
+                  Open Spaces
+                </button>
+              </div>
+            </div>
+            <div className={styles.step}>
+              <span className={styles.stepNum}>{oauthConfigured ? '3' : '2'}</span>
+              <div className={styles.stepContent}>
+                <strong>Track repos</strong>
+                <span className={styles.stepDesc}>
+                  Pick which repos to monitor. PRs, CI status, and stacks sync automatically.
+                  You can add repos after creating a space.
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

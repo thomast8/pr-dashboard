@@ -19,11 +19,13 @@ const queryClient = new QueryClient({
 interface UserContextValue {
   user: GitHubUser | null;
   setUser: (u: GitHubUser | null) => void;
+  oauthConfigured: boolean;
 }
 
 export const UserContext = createContext<UserContextValue>({
   user: null,
   setUser: () => {},
+  oauthConfigured: false,
 });
 
 export function useCurrentUser() {
@@ -35,6 +37,7 @@ export default function App() {
   const [authenticated, setAuthenticated] = useState(false);
   const [authEnabled, setAuthEnabled] = useState(true);
   const [user, setUser] = useState<GitHubUser | null>(null);
+  const [oauthConfigured, setOauthConfigured] = useState(false);
 
   useEffect(() => {
     fetch('/api/auth/me', { credentials: 'include' })
@@ -42,6 +45,7 @@ export default function App() {
       .then((data) => {
         setAuthenticated(data.authenticated);
         setAuthEnabled(data.auth_enabled);
+        setOauthConfigured(data.oauth_configured ?? false);
         if (data.user) setUser(data.user);
         setAuthChecked(true);
       })
@@ -55,7 +59,7 @@ export default function App() {
   }
 
   return (
-    <UserContext.Provider value={{ user, setUser }}>
+    <UserContext.Provider value={{ user, setUser, oauthConfigured }}>
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
           <Routes>

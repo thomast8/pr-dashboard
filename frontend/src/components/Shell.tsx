@@ -1,6 +1,6 @@
 /** App shell — sidebar nav + header + content area. */
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { useSSE } from '../api/useSSE';
 import { useCurrentUser } from '../App';
@@ -8,6 +8,7 @@ import { api } from '../api/client';
 import { TeamPanel } from './TeamPanel';
 import { SpaceManager } from './SpaceManager';
 import { Tooltip } from './Tooltip';
+import { GitHubIcon } from './GitHubIcon';
 import styles from './Shell.module.css';
 
 const BASE = import.meta.env.DEV ? 'http://localhost:8000' : '';
@@ -18,7 +19,13 @@ export function Shell() {
   const isHome = location.pathname === '/';
   const [showTeam, setShowTeam] = useState(false);
   const [showSpaces, setShowSpaces] = useState(false);
-  const { user, setUser } = useCurrentUser();
+  const { user, setUser, oauthConfigured } = useCurrentUser();
+
+  useEffect(() => {
+    const handler = () => setShowSpaces(true);
+    window.addEventListener('open-spaces', handler);
+    return () => window.removeEventListener('open-spaces', handler);
+  }, []);
 
   function handleConnectGitHub() {
     window.location.href = `${BASE}/api/auth/github`;
@@ -55,13 +62,14 @@ export function Shell() {
                 <span className={styles.userName}>{user.name || user.login}</span>
               </button>
             </Tooltip>
-          ) : (
-            <Tooltip text="Connect GitHub for identity and token sharing" position="bottom">
-              <button className={styles.connectBtn} onClick={handleConnectGitHub}>
-                Connect GitHub
+          ) : oauthConfigured ? (
+            <Tooltip text="Sign in to link your identity for assignments, avatars, and optional token sharing with spaces" position="bottom">
+              <button className={styles.githubBtn} onClick={handleConnectGitHub}>
+                <GitHubIcon size={18} />
+                Sign in with GitHub
               </button>
             </Tooltip>
-          )}
+          ) : null}
         </div>
       </header>
       <main className={styles.main}>
