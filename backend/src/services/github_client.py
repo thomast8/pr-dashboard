@@ -76,12 +76,15 @@ class GitHubClient:
         """Get full PR detail (includes mergeable_state, diff stats)."""
         return await self._get(f"/repos/{owner}/{repo}/pulls/{number}")
 
-    async def get_check_runs(
-        self, owner: str, repo: str, ref: str
+    async def get_workflow_runs(
+        self, owner: str, repo: str, head_sha: str
     ) -> list[dict[str, Any]]:
-        """Get check runs for a commit ref."""
-        data = await self._get(f"/repos/{owner}/{repo}/commits/{ref}/check-runs")
-        return data.get("check_runs", [])
+        """Get Actions workflow runs for a commit SHA (uses Actions permission)."""
+        data = await self._get(
+            f"/repos/{owner}/{repo}/actions/runs",
+            params={"head_sha": head_sha},
+        )
+        return data.get("workflow_runs", [])
 
     async def get_reviews(
         self, owner: str, repo: str, number: int

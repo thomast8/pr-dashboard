@@ -83,24 +83,33 @@ class SyncService:
                     pr.deletions = detail.get("deletions", 0)
                     pr.changed_files = detail.get("changed_files", 0)
                     pr.mergeable_state = detail.get("mergeable_state")
-                except Exception:
-                    logger.warning(f"  Could not fetch detail for PR #{gh_pr['number']}")
+                except Exception as exc:
+                    logger.warning(f"  Could not fetch detail for PR #{gh_pr['number']}: {exc}")
 
-                # Sync check runs
+                # Sync workflow runs (via Actions API)
                 try:
-                    checks = await self.github.get_check_runs(
+                    runs = await self.github.get_workflow_runs(
                         owner, name, gh_pr["head"]["sha"]
                     )
+                    checks = [
+                        {
+                            "name": r["name"],
+                            "status": r["status"],
+                            "conclusion": r.get("conclusion"),
+                            "details_url": r.get("html_url"),
+                        }
+                        for r in runs
+                    ]
                     await self._upsert_check_runs(session, pr.id, checks)
-                except Exception:
-                    logger.warning(f"  Could not fetch checks for PR #{gh_pr['number']}")
+                except Exception as exc:
+                    logger.warning(f"  Could not fetch workflow runs for PR #{gh_pr['number']}: {exc}")
 
                 # Sync reviews
                 try:
                     reviews = await self.github.get_reviews(owner, name, gh_pr["number"])
                     await self._upsert_reviews(session, pr.id, reviews)
-                except Exception:
-                    logger.warning(f"  Could not fetch reviews for PR #{gh_pr['number']}")
+                except Exception as exc:
+                    logger.warning(f"  Could not fetch reviews for PR #{gh_pr['number']}: {exc}")
 
             # Update repo last_synced_at
             repo = await session.get(TrackedRepo, repo_id)
