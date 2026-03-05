@@ -1,6 +1,6 @@
 /** Slide-out right panel showing PR detail, checks, reviews. */
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, type PRDetail } from '../api/client';
 import { StatusDot } from './StatusDot';
 import styles from './PRDetailPanel.module.css';
@@ -12,6 +12,8 @@ interface Props {
 }
 
 export function PRDetailPanel({ repoId, prId, onClose }: Props) {
+  const qc = useQueryClient();
+
   // We need the PR number — look it up from the pulls cache or fetch it
   // For simplicity, we'll use a separate query that matches by ID
   const { data: pulls } = useQuery({
@@ -28,6 +30,16 @@ export function PRDetailPanel({ repoId, prId, onClose }: Props) {
   });
 
   const pr: PRDetail | undefined = detail;
+
+  const trackingMutation = useMutation({
+    mutationFn: (data: { reviewed?: boolean; approved?: boolean }) =>
+      api.updateTracking(repoId, prSummary!.number, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['pulls', repoId] });
+      qc.invalidateQueries({ queryKey: ['pr-detail', repoId, prSummary?.number] });
+      qc.invalidateQueries({ queryKey: ['stacks', repoId] });
+    },
+  });
 
   return (
     <div className={styles.panel}>
@@ -102,6 +114,36 @@ export function PRDetailPanel({ repoId, prId, onClose }: Props) {
                 ))}
               </div>
             )}
+          </section>
+
+          {/* Dashboard Tracking */}
+          <section className={styles.section}>
+            <h3>Tracking</h3>
+            <div className={styles.trackingRow}>
+              <button
+                className={`${styles.trackingBtn} ${pr.dashboard_reviewed ? styles.trackingActive : ''}`}
+                onClick={() => trackingMutation.mutate({ reviewed: !pr.dashboard_reviewed })}
+                disabled={trackingMutation.isPending}
+                title="Mark as reviewed"
+              >
+                R
+              </button>
+              <span className={styles.trackingLabel}>Reviewed</span>
+            </div>
+            <div className={styles.trackingRow}>
+              <button
+                className={`${styles.trackingBtn} ${pr.dashboard_approved ? styles.trackingActive : ''} ${pr.rebased_since_approval ? styles.trackingWarn : ''}`}
+                onClick={() => trackingMutation.mutate({ approved: !pr.dashboard_approved })}
+                disabled={trackingMutation.isPending}
+                title={pr.rebased_since_approval ? 'Rebased since approval — click to re-confirm' : 'Mark as approved'}
+              >
+                A
+              </button>
+              <span className={styles.trackingLabel}>Approved</span>
+              {pr.rebased_since_approval && (
+                <span className={styles.rebaseWarning}>rebased</span>
+              )}
+            </div>
           </section>
         </div>
       )}

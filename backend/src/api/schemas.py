@@ -80,6 +80,9 @@ class PRSummary(BaseModel):
     ci_status: str = "unknown"  # computed: success, failure, pending, unknown
     review_state: str = "none"  # computed: approved, changes_requested, reviewed, none
     stack_id: int | None = None
+    dashboard_reviewed: bool = False
+    dashboard_approved: bool = False
+    rebased_since_approval: bool = False
 
 
 class PRDetail(PRSummary):
@@ -158,6 +161,13 @@ class QualitySnapshotOut(BaseModel):
     pytest_errors: int
     mypy_errors: int
     snapshot_at: datetime
+
+
+# ── Tracking ─────────────────────────────────────────────────
+
+class TrackingUpdate(BaseModel):
+    reviewed: bool | None = None
+    approved: bool | None = None
 
 
 # ── Auth ─────────────────────────────────────────────────────

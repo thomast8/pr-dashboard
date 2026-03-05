@@ -19,6 +19,7 @@ router = APIRouter(prefix="/api/repos/{repo_id}", tags=["stacks"])
 
 
 def _pr_summary_from_model(pr: PullRequest) -> PRSummary:
+    rebased = pr.dashboard_approved and pr.head_sha != pr.approved_at_sha
     return PRSummary(
         id=pr.id,
         number=pr.number,
@@ -37,6 +38,9 @@ def _pr_summary_from_model(pr: PullRequest) -> PRSummary:
         updated_at=pr.updated_at,
         ci_status=_compute_ci_status(pr.check_runs),
         review_state=_compute_review_state(pr.reviews),
+        dashboard_reviewed=pr.dashboard_reviewed,
+        dashboard_approved=pr.dashboard_approved,
+        rebased_since_approval=rebased,
     )
 
 

@@ -154,6 +154,7 @@ class SyncService:
                 additions=0,
                 deletions=0,
                 changed_files=0,
+                head_sha=gh_pr["head"]["sha"],
                 html_url=gh_pr["html_url"],
                 created_at=parse_gh_datetime(gh_pr["created_at"]) or now,
                 updated_at=parse_gh_datetime(gh_pr["updated_at"]) or now,
@@ -168,6 +169,7 @@ class SyncService:
             pr.draft = gh_pr.get("draft", False)
             pr.head_ref = gh_pr["head"]["ref"]
             pr.base_ref = gh_pr["base"]["ref"]
+            pr.head_sha = gh_pr["head"]["sha"]
             pr.updated_at = parse_gh_datetime(gh_pr["updated_at"]) or now
             pr.merged_at = parse_gh_datetime(gh_pr.get("merged_at"))
             pr.last_synced_at = now
