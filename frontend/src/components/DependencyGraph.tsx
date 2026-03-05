@@ -1,10 +1,12 @@
 /** Dependency graph showing PRs as cards with SVG arrows.
  *
  * Layout: builds parent-child edges from head_ref/base_ref relationships,
- * then BFS from roots to assign columns. Standalone PRs shown in a grid below.
+ * then BFS from roots to assign positions. Chains wrap to new rows when
+ * they'd exceed the container width (snake layout).
+ * Standalone PRs shown in a flexbox grid below.
  */
 
-import { useMemo } from 'react';
+import { useMemo, useRef, useState, useEffect, useCallback } from 'react';
 import type { PRSummary, Stack } from '../api/client';
 import { StatusDot } from './StatusDot';
 import styles from './DependencyGraph.module.css';
@@ -22,6 +24,7 @@ const CARD_H = 85;
 const GAP_X = 50;
 const GAP_Y = 30;
 const PAD = 20;
+const DEFAULT_MAX_COLS = 4;
 
 interface CardPos {
   x: number;
@@ -36,6 +39,27 @@ interface Arrow {
 }
 
 export function DependencyGraph({ prs, stacks, highlightStackId, selectedPrId, onSelectPr }: Props) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState(0);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setContainerWidth(entry.contentRect.width);
+      }
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const maxCols = useMemo(() => {
+    if (containerWidth <= 0) return DEFAULT_MAX_COLS;
+    return Math.max(2, Math.floor((containerWidth - PAD * 2) / (CARD_W + GAP_X)));
+  }, [containerWidth]);
+
   // Build highlighted PR set
   const highlightedPrIds = useMemo(() => {
     if (highlightStackId == null) return null;
@@ -53,7 +77,6 @@ export function DependencyGraph({ prs, stacks, highlightStackId, selectedPrId, o
     }
 
     // Build parent -> children map
-    // If PR's base_ref matches another PR's head_ref, that other PR is the parent
     const children = new Map<number, PRSummary[]>();
     const parentOf = new Map<number, PRSummary>();
 
@@ -67,7 +90,7 @@ export function DependencyGraph({ prs, stacks, highlightStackId, selectedPrId, o
       }
     }
 
-    // Find roots: PRs that have children but no parent in the map
+    // Find roots and standalones
     const roots: PRSummary[] = [];
     const standalone: PRSummary[] = [];
 
@@ -79,43 +102,49 @@ export function DependencyGraph({ prs, stacks, highlightStackId, selectedPrId, o
       } else if (!hasParent && !hasChildren) {
         standalone.push(pr);
       }
-      // PRs with parents are placed via BFS
     }
 
-    // BFS layout: column = depth from root, rows tracked per column
+    // BFS layout with wrapping: each chain gets its own row band.
+    // Within a chain, columns wrap at maxCols.
     const positions: CardPos[] = [];
-    const rowsPerCol = new Map<number, number>();
+    let globalRow = 0; // tracks the next available row across all chains
 
-    function getNextRow(col: number): number {
-      const row = rowsPerCol.get(col) || 0;
-      rowsPerCol.set(col, row + 1);
-      return row;
-    }
-
-    const queue: { pr: PRSummary; col: number }[] = [];
     for (const root of roots) {
-      queue.push({ pr: root, col: 0 });
-    }
+      // Flatten this chain via BFS to get ordered nodes
+      const chainNodes: PRSummary[] = [];
+      const queue: PRSummary[] = [root];
+      const visited = new Set<number>();
 
-    const visited = new Set<number>();
-    while (queue.length > 0) {
-      const { pr, col } = queue.shift()!;
-      if (visited.has(pr.id)) continue;
-      visited.add(pr.id);
-
-      const row = getNextRow(col);
-      positions.push({
-        x: PAD + col * (CARD_W + GAP_X),
-        y: PAD + row * (CARD_H + GAP_Y),
-        pr,
-      });
-
-      const kids = children.get(pr.id) || [];
-      for (const child of kids) {
-        if (!visited.has(child.id)) {
-          queue.push({ pr: child, col: col + 1 });
+      while (queue.length > 0) {
+        const pr = queue.shift()!;
+        if (visited.has(pr.id)) continue;
+        visited.add(pr.id);
+        chainNodes.push(pr);
+        const kids = children.get(pr.id) || [];
+        for (const child of kids) {
+          if (!visited.has(child.id)) queue.push(child);
         }
       }
+
+      // Place chain nodes with wrapping
+      const chainStartRow = globalRow;
+      let col = 0;
+      let row = chainStartRow;
+
+      for (const pr of chainNodes) {
+        if (col >= maxCols) {
+          col = 0;
+          row += 1;
+        }
+        positions.push({
+          x: PAD + col * (CARD_W + GAP_X),
+          y: PAD + row * (CARD_H + GAP_Y),
+          pr,
+        });
+        col += 1;
+      }
+
+      globalRow = row + 1; // next chain starts on a new row
     }
 
     // Position map for arrow computation
@@ -136,10 +165,22 @@ export function DependencyGraph({ prs, stacks, highlightStackId, selectedPrId, o
       const toY = pos.y + CARD_H / 2;
 
       let d: string;
-      if (Math.abs(fromY - toY) < 5) {
+
+      // Check if this is a wrap (child is on a new row, at col 0)
+      const isWrap = pos.y > parentPos.y && pos.x <= parentPos.x;
+
+      if (isWrap) {
+        // Wrap arrow: go right from parent, down, then left to child
+        const exitX = parentPos.x + CARD_W + GAP_X / 3;
+        const entryX = pos.x - GAP_X / 3;
+        const midY = parentPos.y + CARD_H + GAP_Y / 2;
+        d = `M ${fromX} ${fromY} L ${exitX} ${fromY} L ${exitX} ${midY} L ${entryX} ${midY} L ${entryX} ${toY} L ${toX} ${toY}`;
+      } else if (Math.abs(fromY - toY) < 5) {
+        // Same row: simple bezier
         const cx = (fromX + toX) / 2;
         d = `M ${fromX} ${fromY} C ${cx} ${fromY}, ${cx} ${toY}, ${toX} ${toY}`;
       } else {
+        // Cross row (branching): L-shaped path
         const midX = fromX + GAP_X / 2;
         d = `M ${fromX} ${fromY} L ${midX} ${fromY} L ${midX} ${toY} L ${toX} ${toY}`;
       }
@@ -165,10 +206,10 @@ export function DependencyGraph({ prs, stacks, highlightStackId, selectedPrId, o
       svgW: maxX + PAD,
       svgH: maxY + PAD,
     };
-  }, [prs, highlightedPrIds]);
+  }, [prs, highlightedPrIds, maxCols]);
 
-  const isDimmed = (prId: number) =>
-    highlightedPrIds != null && !highlightedPrIds.has(prId);
+  const isDimmed = useCallback((prId: number) =>
+    highlightedPrIds != null && !highlightedPrIds.has(prId), [highlightedPrIds]);
 
   function renderCard(pr: PRSummary) {
     return (
@@ -199,7 +240,7 @@ export function DependencyGraph({ prs, stacks, highlightStackId, selectedPrId, o
   }
 
   return (
-    <div className={styles.graphArea}>
+    <div className={styles.graphArea} ref={containerRef}>
       {layout.length > 0 && (
         <div className={styles.graphContainer} style={{ width: svgW, height: svgH }}>
           <svg className={styles.svg} width={svgW} height={svgH}>
