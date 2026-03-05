@@ -32,13 +32,12 @@ class AuthMiddleware(BaseHTTPMiddleware):
             return JSONResponse(status_code=401, content={"detail": "Not authenticated"})
         return await call_next(request)
 
+
 COOKIE_NAME = "dashboard_session"
 
 
 def _sign(payload: str) -> str:
-    sig = hmac.new(
-        settings.secret_key.encode(), payload.encode(), hashlib.sha256
-    ).hexdigest()
+    sig = hmac.new(settings.secret_key.encode(), payload.encode(), hashlib.sha256).hexdigest()
     return f"{payload}.{sig}"
 
 
@@ -46,9 +45,7 @@ def _verify(token: str) -> str | None:
     if "." not in token:
         return None
     payload, sig = token.rsplit(".", 1)
-    expected = hmac.new(
-        settings.secret_key.encode(), payload.encode(), hashlib.sha256
-    ).hexdigest()
+    expected = hmac.new(settings.secret_key.encode(), payload.encode(), hashlib.sha256).hexdigest()
     if not hmac.compare_digest(sig, expected):
         return None
     return payload

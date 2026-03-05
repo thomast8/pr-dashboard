@@ -67,11 +67,11 @@ async def detect_stacks(session: AsyncSession, repo_id: int) -> list[PRStack]:
         return []
 
     # Clear existing stacks for this repo
-    await session.execute(delete(PRStackMembership).where(
-        PRStackMembership.stack_id.in_(
-            select(PRStack.id).where(PRStack.repo_id == repo_id)
+    await session.execute(
+        delete(PRStackMembership).where(
+            PRStackMembership.stack_id.in_(select(PRStack.id).where(PRStack.repo_id == repo_id))
         )
-    ))
+    )
     await session.execute(delete(PRStack).where(PRStack.repo_id == repo_id))
 
     now = datetime.now(UTC)
@@ -115,9 +115,7 @@ async def detect_stacks(session: AsyncSession, repo_id: int) -> list[PRStack]:
             session.add(membership)
 
         new_stacks.append(stack)
-        logger.info(
-            f"  Detected stack '{stack_name}' with {len(stack_prs)} PRs"
-        )
+        logger.info(f"  Detected stack '{stack_name}' with {len(stack_prs)} PRs")
 
     await session.flush()
     return new_stacks

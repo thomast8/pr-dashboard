@@ -15,8 +15,10 @@ router = APIRouter(prefix="/api/team", tags=["team"])
 async def list_team(session: AsyncSession = Depends(get_session)) -> list[TeamMemberOut]:
     """List all team members."""
     members = (
-        await session.execute(select(TeamMember).order_by(TeamMember.display_name))
-    ).scalars().all()
+        (await session.execute(select(TeamMember).order_by(TeamMember.display_name)))
+        .scalars()
+        .all()
+    )
     return [
         TeamMemberOut(
             id=m.id,
@@ -79,9 +81,7 @@ async def update_member(
 
 
 @router.delete("/{member_id}", status_code=204)
-async def deactivate_member(
-    member_id: int, session: AsyncSession = Depends(get_session)
-) -> None:
+async def deactivate_member(member_id: int, session: AsyncSession = Depends(get_session)) -> None:
     """Deactivate a team member (soft-delete)."""
     member = await session.get(TeamMember, member_id)
     if not member:

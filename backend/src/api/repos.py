@@ -46,9 +46,7 @@ async def list_repos(session: AsyncSession = Depends(get_session)) -> list[RepoS
             .distinct()
         )
         failing_count = (
-            await session.execute(
-                select(func.count()).select_from(failing_subq.subquery())
-            )
+            await session.execute(select(func.count()).select_from(failing_subq.subquery()))
         ).scalar_one()
 
         # Count stale PRs (no update in 7 days)
@@ -65,9 +63,7 @@ async def list_repos(session: AsyncSession = Depends(get_session)) -> list[RepoS
 
         # Count stacks
         stack_count = (
-            await session.execute(
-                select(func.count(PRStack.id)).where(PRStack.repo_id == repo.id)
-            )
+            await session.execute(select(func.count(PRStack.id)).where(PRStack.repo_id == repo.id))
         ).scalar_one()
 
         summaries.append(
@@ -119,18 +115,14 @@ async def list_available_repos(
 
 
 @router.post("", response_model=RepoDetail, status_code=201)
-async def add_repo(
-    body: RepoCreate, session: AsyncSession = Depends(get_session)
-) -> RepoDetail:
+async def add_repo(body: RepoCreate, session: AsyncSession = Depends(get_session)) -> RepoDetail:
     """Add a repo to track."""
     owner = body.owner or settings.github_org
     full_name = f"{owner}/{body.name}"
 
     # Check for duplicates
     existing = (
-        await session.execute(
-            select(TrackedRepo).where(TrackedRepo.full_name == full_name)
-        )
+        await session.execute(select(TrackedRepo).where(TrackedRepo.full_name == full_name))
     ).scalar_one_or_none()
     if existing:
         raise HTTPException(status_code=409, detail=f"{full_name} is already tracked")
@@ -140,9 +132,7 @@ async def add_repo(
     try:
         gh_repo = await gh.get_repo(owner, body.name)
     except Exception as exc:
-        raise HTTPException(
-            status_code=404, detail=f"GitHub repo {full_name} not found"
-        ) from exc
+        raise HTTPException(status_code=404, detail=f"GitHub repo {full_name} not found") from exc
     finally:
         await gh.close()
 
@@ -184,9 +174,7 @@ async def add_repo(
 
 
 @router.delete("/{repo_id}", status_code=204)
-async def remove_repo(
-    repo_id: int, session: AsyncSession = Depends(get_session)
-) -> None:
+async def remove_repo(repo_id: int, session: AsyncSession = Depends(get_session)) -> None:
     """Stop tracking a repo (soft-delete)."""
     repo = await session.get(TrackedRepo, repo_id)
     if not repo:
@@ -196,9 +184,7 @@ async def remove_repo(
 
 
 @router.post("/{repo_id}/sync", status_code=202)
-async def force_sync(
-    repo_id: int, session: AsyncSession = Depends(get_session)
-) -> dict[str, str]:
+async def force_sync(repo_id: int, session: AsyncSession = Depends(get_session)) -> dict[str, str]:
     """Trigger an immediate sync for a repo."""
     repo = await session.get(TrackedRepo, repo_id)
     if not repo:

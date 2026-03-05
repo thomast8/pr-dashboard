@@ -25,9 +25,7 @@ class GitHubClient:
             }
             if self._token:
                 headers["Authorization"] = f"Bearer {self._token}"
-            self._client = httpx.AsyncClient(
-                base_url=BASE_URL, headers=headers, timeout=30.0
-            )
+            self._client = httpx.AsyncClient(base_url=BASE_URL, headers=headers, timeout=30.0)
         return self._client
 
     async def close(self) -> None:
@@ -76,9 +74,7 @@ class GitHubClient:
         """Get full PR detail (includes mergeable_state, diff stats)."""
         return await self._get(f"/repos/{owner}/{repo}/pulls/{number}")
 
-    async def get_workflow_runs(
-        self, owner: str, repo: str, head_sha: str
-    ) -> list[dict[str, Any]]:
+    async def get_workflow_runs(self, owner: str, repo: str, head_sha: str) -> list[dict[str, Any]]:
         """Get Actions workflow runs for a commit SHA (uses Actions permission)."""
         data = await self._get(
             f"/repos/{owner}/{repo}/actions/runs",
@@ -86,13 +82,9 @@ class GitHubClient:
         )
         return data.get("workflow_runs", [])
 
-    async def get_reviews(
-        self, owner: str, repo: str, number: int
-    ) -> list[dict[str, Any]]:
+    async def get_reviews(self, owner: str, repo: str, number: int) -> list[dict[str, Any]]:
         """Get reviews for a PR."""
-        return await self._get_paginated(
-            f"/repos/{owner}/{repo}/pulls/{number}/reviews"
-        )
+        return await self._get_paginated(f"/repos/{owner}/{repo}/pulls/{number}/reviews")
 
     async def list_org_repos(self, org: str) -> list[dict[str, Any]]:
         """List all repos in an organization."""
