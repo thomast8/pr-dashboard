@@ -20,7 +20,7 @@ router = APIRouter(prefix="/api/repos", tags=["repos"])
 @router.get("", response_model=list[RepoSummary])
 async def list_repos(session: AsyncSession = Depends(get_session)) -> list[RepoSummary]:
     """List all tracked repos with summary stats."""
-    repos = (await session.execute(select(TrackedRepo))).scalars().all()
+    repos = (await session.execute(select(TrackedRepo).where(TrackedRepo.is_active.is_(True)))).scalars().all()
     summaries: list[RepoSummary] = []
 
     for repo in repos:
