@@ -22,9 +22,16 @@ export function RepoView() {
   const [assigneeFilter, setAssigneeFilter] = useState<number | null>(null);
 
   // Get repo ID from the repos list
+  // Poll while repo hasn't been synced yet so we pick up last_synced_at
   const { data: repos } = useQuery({
     queryKey: ['repos'],
     queryFn: () => api.listRepos(),
+    refetchInterval: (query) => {
+      const repoData = query.state.data?.find(
+        (r: RepoSummary) => r.owner === owner && r.name === name,
+      );
+      return repoData && !repoData.last_synced_at ? 3_000 : false;
+    },
   });
   const repo = repos?.find((r: RepoSummary) => r.owner === owner && r.name === name);
 
@@ -50,6 +57,7 @@ export function RepoView() {
   const syncMutation = useMutation({
     mutationFn: () => api.syncRepo(repo!.id),
     onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['repos'] });
       qc.invalidateQueries({ queryKey: ['pulls', repo?.id] });
       qc.invalidateQueries({ queryKey: ['stacks', repo?.id] });
     },
@@ -136,7 +144,12 @@ export function RepoView() {
           </Tooltip>
         </div>
 
-        {isLoading ? (
+        {!repo.last_synced_at ? (
+          <div className={styles.syncing}>
+            <span className={styles.syncSpinner} />
+            Syncing repository — pull requests will appear shortly...
+          </div>
+        ) : isLoading ? (
           <div className={styles.loading}>Loading PRs...</div>
         ) : (
           <DependencyGraph

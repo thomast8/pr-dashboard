@@ -168,6 +168,7 @@ export function OrgOverview() {
     mutationFn: (id: number) => api.removeRepo(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['repos'] });
+      qc.invalidateQueries({ queryKey: ['available-repos'] });
     },
   });
 
