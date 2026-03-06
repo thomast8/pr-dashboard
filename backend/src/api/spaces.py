@@ -123,7 +123,7 @@ async def list_available_repos(space_id: int, session: AsyncSession = Depends(ge
     finally:
         await gh.close()
 
-    tracked = set((await session.execute(select(TrackedRepo.full_name))).scalars().all())
+    tracked = set((await session.execute(select(TrackedRepo.full_name).where(TrackedRepo.is_active.is_(True)))).scalars().all())
 
     return [
         {
