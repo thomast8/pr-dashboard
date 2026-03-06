@@ -121,8 +121,6 @@ function RepoBrowser({ space, onClose }: { space: Space; onClose: () => void }) 
   );
 }
 
-const BASE = import.meta.env.DEV ? 'http://localhost:8000' : '';
-
 export function OrgOverview() {
   const qc = useQueryClient();
   const { user, oauthConfigured } = useCurrentUser();
@@ -168,7 +166,7 @@ export function OrgOverview() {
       bySpace.get(key)!.push(repo);
     }
 
-    // Active spaces first (in order), then unassigned
+    // Active spaces first (in order), then remaining repos
     for (const space of spaces || []) {
       if (!space.is_active) {
         bySpace.delete(space.id);
@@ -178,9 +176,13 @@ export function OrgOverview() {
       groups.push({ space, repos: spaceRepos || [] });
       bySpace.delete(space.id);
     }
-    const unassigned = bySpace.get(null);
-    if (unassigned?.length) {
-      groups.push({ space: null, repos: unassigned });
+    // Collect repos from spaces the user doesn't own (shared repos) + unassigned
+    const remaining: RepoSummary[] = [];
+    for (const [, spaceRepos] of bySpace) {
+      remaining.push(...spaceRepos);
+    }
+    if (remaining.length) {
+      groups.push({ space: null, repos: remaining });
     }
 
     return groups;
@@ -188,7 +190,7 @@ export function OrgOverview() {
 
   if (reposLoading) return <div className={styles.loading}>Loading repos...</div>;
 
-  const hasSpaces = spaces && spaces.some((s) => s.is_active);
+  const hasContent = (repos && repos.length > 0) || (spaces && spaces.some((s) => s.is_active));
 
   return (
     <div>
@@ -196,7 +198,7 @@ export function OrgOverview() {
         <h1 className={styles.title}>Tracked Repositories</h1>
       </div>
 
-      {!hasSpaces && (
+      {!hasContent && (
         <div className={styles.onboarding}>
           <h2 className={styles.onboardingTitle}>Welcome to PR Dashboard</h2>
           <p className={styles.onboardingDesc}>
@@ -214,7 +216,7 @@ export function OrgOverview() {
                   {!user && (
                     <button
                       className={styles.githubBtn}
-                      onClick={() => { window.location.href = `${BASE}/api/auth/github`; }}
+                      onClick={() => { window.location.href = '/api/auth/github'; }}
                     >
                       <GitHubIcon size={16} />
                       Sign in with GitHub
@@ -255,7 +257,7 @@ export function OrgOverview() {
         <div key={space?.id ?? 'none'} className={styles.spaceGroup}>
           <div className={styles.spaceHeader}>
             <h2 className={styles.spaceName}>
-              {space?.name ?? 'Unassigned'}
+              {space?.name ?? 'Shared with you'}
             </h2>
             {space && (
               <span className={styles.spaceSlug}>{space.slug}</span>
@@ -290,7 +292,7 @@ export function OrgOverview() {
                       style={{ background: repo.last_synced_at ? healthColor(repo) : 'var(--text-dim)' }}
                     />
                   </Tooltip>
-                  <span className={styles.repoName}>{repo.full_name}</span>
+                  <span className={styles.repoName}>{repo.full_name.split('/').pop()}</span>
                   {user && repo.user_id === user.id && (
                     <Tooltip text={`Click to make ${repo.visibility === 'private' ? 'shared' : 'private'}`} position="top">
                       <button
