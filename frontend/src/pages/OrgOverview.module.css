@@ -181,6 +181,7 @@
   padding: 1rem 1.25rem;
   text-decoration: none;
   color: inherit;
+  overflow: hidden;
   transition: border-color var(--transition-normal), transform var(--transition-fast);
 }
 .card:hover {
@@ -194,6 +195,7 @@
   align-items: center;
   gap: 0.5rem;
   margin-bottom: 0.75rem;
+  overflow: hidden;
 }
 
 .healthDot {
@@ -207,6 +209,10 @@
   font-weight: 600;
   font-size: 0.95rem;
   color: var(--accent-teal);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Repo visibility badge */

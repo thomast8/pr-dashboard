@@ -44,6 +44,7 @@ async def list_repos(
         stmt = stmt.where(TrackedRepo.visibility == "shared")
     if space_id is not None:
         stmt = stmt.where(TrackedRepo.space_id == space_id)
+    stmt = stmt.order_by(TrackedRepo.full_name)
 
     repos = (await session.execute(stmt)).scalars().unique().all()
     summaries: list[RepoSummary] = []
