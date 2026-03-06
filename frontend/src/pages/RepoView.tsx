@@ -24,7 +24,7 @@ export function RepoView() {
   // Get repo ID from the repos list
   const { data: repos } = useQuery({
     queryKey: ['repos'],
-    queryFn: api.listRepos,
+    queryFn: () => api.listRepos(),
   });
   const repo = repos?.find((r: RepoSummary) => r.owner === owner && r.name === name);
 
