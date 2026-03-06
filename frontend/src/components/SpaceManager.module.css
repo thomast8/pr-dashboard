@@ -250,6 +250,64 @@
   margin: 0 0 0.5rem 0;
 }
 
+/* Token creation guide */
+.tokenGuide {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  margin-bottom: 0.5rem;
+}
+
+.tokenGuide summary {
+  cursor: pointer;
+  color: var(--accent-blue);
+  font-weight: 600;
+  user-select: none;
+}
+.tokenGuide summary:hover {
+  text-decoration: underline;
+}
+
+.tokenGuideBody {
+  margin-top: 0.4rem;
+  padding-left: 0.25rem;
+  line-height: 1.6;
+}
+
+.tokenGuideBody p {
+  margin: 0.4rem 0 0.2rem 0;
+}
+
+.tokenGuideBody ol,
+.tokenGuideBody ul {
+  margin: 0.2rem 0;
+  padding-left: 1.2rem;
+}
+
+.tokenGuideBody li {
+  margin-bottom: 0.15rem;
+}
+
+.tokenGuideBody a {
+  color: var(--accent-blue);
+  text-decoration: none;
+}
+.tokenGuideBody a:hover {
+  text-decoration: underline;
+}
+
+.tokenGuideBody code {
+  background: var(--bg-elevated);
+  padding: 1px 4px;
+  border-radius: var(--radius-sm);
+  font-size: 0.68rem;
+}
+
+.tokenGuideSso {
+  border-left: 2px solid var(--accent-gold);
+  padding-left: 0.5rem;
+  margin-top: 0.4rem;
+}
+
 .tokenFormError {
   font-size: 0.75rem;
   color: var(--accent-red);

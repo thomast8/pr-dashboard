@@ -190,6 +190,54 @@ function TokenLinkForm({
         Paste a Personal Access Token (PAT) to link a different GitHub account
         or a GitHub Enterprise instance.
       </p>
+      <details className={styles.tokenGuide}>
+        <summary>How to create a token</summary>
+        <div className={styles.tokenGuideBody}>
+          <p><strong>Option A: Fine-grained token</strong> (recommended)</p>
+          <ol>
+            <li>
+              Open{' '}
+              <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener noreferrer">
+                github.com &rarr; Settings &rarr; Fine-grained tokens
+              </a>
+            </li>
+            <li><strong>Token name</strong> &mdash; anything you like (e.g. "PR Dashboard")</li>
+            <li><strong>Expiration</strong> &mdash; 90 days is a good default</li>
+            <li><strong>Resource owner</strong> &mdash; pick your org or personal account</li>
+            <li><strong>Repository access</strong> &mdash; "All repositories", or select the ones you want to track</li>
+            <li>
+              Under <strong>Repository permissions</strong>, set:
+              <ul>
+                <li><strong>Pull requests</strong> &rarr; Read-only</li>
+                <li><strong>Actions</strong> &rarr; Read-only</li>
+                <li><em>Metadata</em> &rarr; Read-only (selected automatically)</li>
+              </ul>
+            </li>
+            <li>
+              Under <strong>Organization permissions</strong>, set:
+              <ul>
+                <li><strong>Members</strong> &rarr; Read-only (needed to discover your orgs)</li>
+              </ul>
+            </li>
+            <li>Click <strong>Generate token</strong> and copy it</li>
+          </ol>
+          <p><strong>Option B: Classic token</strong></p>
+          <ol>
+            <li>
+              Open{' '}
+              <a href="https://github.com/settings/tokens/new" target="_blank" rel="noopener noreferrer">
+                github.com &rarr; Settings &rarr; Classic tokens
+              </a>
+            </li>
+            <li>Select scopes: <code>repo</code> and <code>read:org</code></li>
+            <li>Click <strong>Generate token</strong> and copy it</li>
+          </ol>
+          <p className={styles.tokenGuideSso}>
+            If your org uses SAML SSO, click <strong>Configure SSO</strong> next to the token
+            after creating it and authorize it for your org.
+          </p>
+        </div>
+      </details>
       {error && <div className={styles.tokenFormError}>{error}</div>}
       <div className={styles.tokenFormRow}>
         <label>Personal Access Token</label>
