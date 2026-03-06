@@ -7,7 +7,7 @@ import pytest_asyncio
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.tables import PRStack, PRStackMembership, PullRequest, TrackedRepo
+from src.models.tables import PRStackMembership, PullRequest, TrackedRepo
 from src.services.stack_detector import detect_stacks
 
 
@@ -87,12 +87,16 @@ async def test_linear_chain(db_session: AsyncSession, repo: TrackedRepo):
     assert stack.name == "Stack: branch-1"
 
     memberships = (
-        await db_session.execute(
-            select(PRStackMembership)
-            .where(PRStackMembership.stack_id == stack.id)
-            .order_by(PRStackMembership.position)
+        (
+            await db_session.execute(
+                select(PRStackMembership)
+                .where(PRStackMembership.stack_id == stack.id)
+                .order_by(PRStackMembership.position)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     assert len(memberships) == 3
     assert memberships[0].position == 0
@@ -115,12 +119,16 @@ async def test_fan_out(db_session: AsyncSession, repo: TrackedRepo):
     assert len(stacks) == 1
 
     memberships = (
-        await db_session.execute(
-            select(PRStackMembership)
-            .where(PRStackMembership.stack_id == stacks[0].id)
-            .order_by(PRStackMembership.position)
+        (
+            await db_session.execute(
+                select(PRStackMembership)
+                .where(PRStackMembership.stack_id == stacks[0].id)
+                .order_by(PRStackMembership.position)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     # Root + 2 children = 3 members
     assert len(memberships) == 3
@@ -157,21 +165,22 @@ async def test_single_child_is_a_stack(db_session: AsyncSession, repo: TrackedRe
 
     stacks = await detect_stacks(db_session, repo.id)
     assert len(stacks) == 1
-    assert len(
-        (
-            await db_session.execute(
-                select(PRStackMembership).where(
-                    PRStackMembership.stack_id == stacks[0].id
+    assert (
+        len(
+            (
+                await db_session.execute(
+                    select(PRStackMembership).where(PRStackMembership.stack_id == stacks[0].id)
                 )
             )
-        ).scalars().all()
-    ) == 2
+            .scalars()
+            .all()
+        )
+        == 2
+    )
 
 
 @pytest.mark.asyncio
-async def test_redetection_clears_old_stacks(
-    db_session: AsyncSession, repo: TrackedRepo
-):
+async def test_redetection_clears_old_stacks(db_session: AsyncSession, repo: TrackedRepo):
     """Running detect_stacks again should replace previous stacks."""
     db_session.add(_make_pr(repo.id, 1, "a", "main"))
     db_session.add(_make_pr(repo.id, 2, "b", "a"))

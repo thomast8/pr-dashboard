@@ -7,19 +7,13 @@ import pytest_asyncio
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.tables import PullRequest, TeamMember, TrackedRepo
+from src.models.tables import PullRequest, TrackedRepo, User
 
 
 @pytest_asyncio.fixture
 async def seed_data(client: AsyncClient, db_session: AsyncSession):
-    """Create a repo, PR, and team member for progress tests.
-
-    Uses db_session directly so all data is in the shared in-memory DB
-    that the client fixture also reads from.
-    """
-    repo = TrackedRepo(
-        owner="prog", name="repo", full_name="prog/repo", default_branch="main"
-    )
+    """Create a repo, PR, and user for progress tests."""
+    repo = TrackedRepo(owner="prog", name="repo", full_name="prog/repo", default_branch="main")
     db_session.add(repo)
     await db_session.flush()
 
@@ -44,11 +38,11 @@ async def seed_data(client: AsyncClient, db_session: AsyncSession):
     db_session.add(pr)
     await db_session.flush()
 
-    member = TeamMember(display_name="Alice", github_login="alice")
-    db_session.add(member)
+    user = User(github_id=12345, login="alice", name="Alice")
+    db_session.add(user)
     await db_session.commit()
 
-    return {"repo": repo, "pr": pr, "member": member}
+    return {"repo": repo, "pr": pr, "user": user}
 
 
 @pytest.mark.asyncio
@@ -65,7 +59,7 @@ async def test_update_progress_creates_entry(client, seed_data):
     resp = await client.put(
         f"/api/pulls/{data['pr'].id}/progress",
         json={
-            "team_member_id": data["member"].id,
+            "user_id": data["user"].id,
             "reviewed": True,
             "approved": False,
             "notes": "Looks good so far",
@@ -76,7 +70,7 @@ async def test_update_progress_creates_entry(client, seed_data):
     assert body["reviewed"] is True
     assert body["approved"] is False
     assert body["notes"] == "Looks good so far"
-    assert body["team_member_name"] == "Alice"
+    assert body["user_name"] == "Alice"
 
 
 @pytest.mark.asyncio
@@ -84,18 +78,18 @@ async def test_update_progress_upserts(client, seed_data):
     """Second update should modify, not duplicate."""
     data = seed_data
     pr_id = data["pr"].id
-    member_id = data["member"].id
+    user_id = data["user"].id
 
     # First update
     await client.put(
         f"/api/pulls/{pr_id}/progress",
-        json={"team_member_id": member_id, "reviewed": True},
+        json={"user_id": user_id, "reviewed": True},
     )
 
     # Second update — approve
     await client.put(
         f"/api/pulls/{pr_id}/progress",
-        json={"team_member_id": member_id, "approved": True},
+        json={"user_id": user_id, "approved": True},
     )
 
     # Verify only one entry exists
@@ -111,16 +105,16 @@ async def test_progress_nonexistent_pr(client, seed_data):
     data = seed_data
     resp = await client.put(
         "/api/pulls/99999/progress",
-        json={"team_member_id": data["member"].id, "reviewed": True},
+        json={"user_id": data["user"].id, "reviewed": True},
     )
     assert resp.status_code == 404
 
 
 @pytest.mark.asyncio
-async def test_progress_nonexistent_member(client, seed_data):
+async def test_progress_nonexistent_user(client, seed_data):
     data = seed_data
     resp = await client.put(
         f"/api/pulls/{data['pr'].id}/progress",
-        json={"team_member_id": 99999, "reviewed": True},
+        json={"user_id": 99999, "reviewed": True},
     )
     assert resp.status_code == 404

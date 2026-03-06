@@ -218,9 +218,7 @@ class SyncService:
                             try:
                                 return await github.get_pull(owner, name, pr_number)
                             except Exception as exc:
-                                logger.warning(
-                                    f"  Could not fetch stale PR #{pr_number}: {exc}"
-                                )
+                                logger.warning(f"  Could not fetch stale PR #{pr_number}: {exc}")
                                 return None
 
                     stale_details = await asyncio.gather(
@@ -232,8 +230,8 @@ class SyncService:
                             continue
                         pr.state = detail["state"]
                         pr.merged_at = parse_gh_datetime(detail.get("merged_at"))
-                        pr.updated_at = (
-                            parse_gh_datetime(detail.get("updated_at")) or datetime.now(UTC)
+                        pr.updated_at = parse_gh_datetime(detail.get("updated_at")) or datetime.now(
+                            UTC
                         )
                         pr.last_synced_at = datetime.now(UTC)
 

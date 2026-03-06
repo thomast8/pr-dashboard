@@ -5,8 +5,9 @@ Revises: 001_add_tracking
 Create Date: 2026-03-05
 """
 
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 revision = "002_add_assignee"
 down_revision = "001_add_tracking"
@@ -17,7 +18,12 @@ depends_on = None
 def upgrade() -> None:
     op.add_column(
         "pull_requests",
-        sa.Column("assignee_id", sa.Integer(), sa.ForeignKey("team_members.id", ondelete="SET NULL"), nullable=True),
+        sa.Column(
+            "assignee_id",
+            sa.Integer(),
+            sa.ForeignKey("team_members.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
     )
 
 

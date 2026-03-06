@@ -1,0 +1,23 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.6
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: local
+    hooks:
+      - id: tsc
+        name: TypeScript type check
+        entry: bash -c 'cd frontend && npx tsc --noEmit'
+        language: system
+        files: '^frontend/.*\.(ts|tsx)$'
+        pass_filenames: false
+
+      - id: pytest
+        name: pytest
+        entry: bash -c 'cd backend && uv run pytest -x -q'
+        language: system
+        files: '^backend/.*\.py$'
+        pass_filenames: false

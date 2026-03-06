@@ -5,8 +5,9 @@ Revises: 005
 Create Date: 2026-03-06
 """
 
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 revision = "006"
 down_revision = "005"
@@ -31,9 +32,7 @@ def upgrade() -> None:
         "FROM github_accounts ga WHERE spaces.github_account_id = ga.id"
     )
     # Orphan spaces (no github_account) become shared
-    op.execute(
-        "UPDATE spaces SET visibility = 'shared' WHERE github_account_id IS NULL"
-    )
+    op.execute("UPDATE spaces SET visibility = 'shared' WHERE github_account_id IS NULL")
 
 
 def downgrade() -> None:

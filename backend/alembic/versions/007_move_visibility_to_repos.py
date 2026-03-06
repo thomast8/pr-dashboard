@@ -5,8 +5,9 @@ Revises: 006
 Create Date: 2026-03-06
 """
 
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 revision = "007"
 down_revision = "006"
@@ -16,15 +17,32 @@ depends_on = None
 
 def upgrade() -> None:
     # Add user_id and visibility to tracked_repos
-    op.add_column("tracked_repos", sa.Column("user_id", sa.Integer(), nullable=True))
     op.add_column(
         "tracked_repos",
-        sa.Column("visibility", sa.String(20), nullable=False, server_default="private"),
+        sa.Column("user_id", sa.Integer(), nullable=True),
+    )
+    op.add_column(
+        "tracked_repos",
+        sa.Column(
+            "visibility",
+            sa.String(20),
+            nullable=False,
+            server_default="private",
+        ),
     )
     op.create_foreign_key(
-        "fk_tracked_repos_user_id", "tracked_repos", "users", ["user_id"], ["id"], ondelete="SET NULL"
+        "fk_tracked_repos_user_id",
+        "tracked_repos",
+        "users",
+        ["user_id"],
+        ["id"],
+        ondelete="SET NULL",
     )
-    op.create_index("ix_tracked_repos_visibility_user_id", "tracked_repos", ["visibility", "user_id"])
+    op.create_index(
+        "ix_tracked_repos_visibility_user_id",
+        "tracked_repos",
+        ["visibility", "user_id"],
+    )
 
     # Backfill from spaces: copy user_id and visibility from parent space
     op.execute(
@@ -32,9 +50,7 @@ def upgrade() -> None:
         "FROM spaces s WHERE tracked_repos.space_id = s.id"
     )
     # Orphan repos (no space) become shared to preserve current behavior
-    op.execute(
-        "UPDATE tracked_repos SET visibility = 'shared' WHERE space_id IS NULL"
-    )
+    op.execute("UPDATE tracked_repos SET visibility = 'shared' WHERE space_id IS NULL")
 
     # Drop visibility from spaces (no longer needed)
     op.drop_index("ix_spaces_visibility_user_id", table_name="spaces")

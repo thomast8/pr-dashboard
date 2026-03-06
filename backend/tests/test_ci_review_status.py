@@ -9,6 +9,7 @@ from src.api.pulls import _compute_ci_status, _compute_review_state
 @dataclass
 class FakeCheck:
     """Lightweight stand-in for CheckRun (avoids ORM init issues)."""
+
     name: str
     status: str
     conclusion: str | None = None
@@ -17,12 +18,14 @@ class FakeCheck:
 @dataclass
 class FakeReview:
     """Lightweight stand-in for Review."""
+
     reviewer: str
     state: str
     submitted_at: datetime = datetime(2025, 1, 1, tzinfo=UTC)
 
 
 # ── CI Status ─────────────────────────────────────
+
 
 class TestComputeCiStatus:
     def test_no_checks(self):
@@ -66,6 +69,7 @@ class TestComputeCiStatus:
 
 
 # ── Review State ──────────────────────────────────
+
 
 class TestComputeReviewState:
     def test_no_reviews(self):

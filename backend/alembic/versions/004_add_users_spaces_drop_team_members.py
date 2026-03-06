@@ -7,8 +7,9 @@ Create Date: 2026-03-05
 
 import os
 
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 revision = "004"
 down_revision = "003_merge"
@@ -64,7 +65,12 @@ def upgrade() -> None:
     # 3. Add space_id to tracked_repos (nullable initially)
     op.add_column(
         "tracked_repos",
-        sa.Column("space_id", sa.Integer(), sa.ForeignKey("spaces.id", ondelete="SET NULL"), nullable=True),
+        sa.Column(
+            "space_id",
+            sa.Integer(),
+            sa.ForeignKey("spaces.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
     )
 
     # 4. Seed default space from env vars if available, and assign existing repos
@@ -96,7 +102,10 @@ def upgrade() -> None:
             },
         )
         # Get the space id
-        result = conn.execute(sa.text("SELECT id FROM spaces WHERE slug = :slug"), {"slug": github_org})
+        result = conn.execute(
+            sa.text("SELECT id FROM spaces WHERE slug = :slug"),
+            {"slug": github_org},
+        )
         space_id = result.scalar()
         if space_id:
             conn.execute(
@@ -107,7 +116,10 @@ def upgrade() -> None:
     # 5. Migrate team_members -> users (best-effort: only those with github_login)
     conn = op.get_bind()
     result = conn.execute(
-        sa.text("SELECT id, display_name, github_login FROM team_members WHERE github_login IS NOT NULL")
+        sa.text(
+            "SELECT id, display_name, github_login "
+            "FROM team_members WHERE github_login IS NOT NULL"
+        )
     )
     for row in result:
         # Use negative IDs as placeholder github_ids for migrated team members
@@ -120,8 +132,12 @@ def upgrade() -> None:
             {"gid": -row[0], "login": row[2], "name": row[1]},
         )
 
-    # 6. Update pull_requests.assignee_id FK: drop old FK, add new one pointing to users
-    op.drop_constraint("pull_requests_assignee_id_fkey", "pull_requests", type_="foreignkey")
+    # 6. Update pull_requests.assignee_id FK: drop old FK, add new one
+    op.drop_constraint(
+        "pull_requests_assignee_id_fkey",
+        "pull_requests",
+        type_="foreignkey",
+    )
     # Clear any assignee_ids that reference old team_members — we'll need to remap
     # For simplicity, null them out (users will reassign via the new UI)
     conn.execute(sa.text("UPDATE pull_requests SET assignee_id = NULL"))
@@ -136,10 +152,18 @@ def upgrade() -> None:
 
     # 7. Update user_progress: rename team_member_id -> user_id, repoint FK
     op.drop_constraint("uq_pr_member_progress", "user_progress", type_="unique")
-    op.drop_constraint("user_progress_team_member_id_fkey", "user_progress", type_="foreignkey")
+    op.drop_constraint(
+        "user_progress_team_member_id_fkey",
+        "user_progress",
+        type_="foreignkey",
+    )
     op.alter_column("user_progress", "team_member_id", new_column_name="user_id")
     # Clear user_ids that don't map to new users
-    conn.execute(sa.text("UPDATE user_progress SET user_id = NULL WHERE user_id NOT IN (SELECT id FROM users)"))
+    conn.execute(
+        sa.text(
+            "UPDATE user_progress SET user_id = NULL WHERE user_id NOT IN (SELECT id FROM users)"
+        )
+    )
     # user_id is NOT NULL so delete orphaned rows
     conn.execute(sa.text("DELETE FROM user_progress WHERE user_id IS NULL"))
     op.create_foreign_key(
@@ -150,7 +174,9 @@ def upgrade() -> None:
         ["id"],
         ondelete="CASCADE",
     )
-    op.create_unique_constraint("uq_pr_user_progress", "user_progress", ["pull_request_id", "user_id"])
+    op.create_unique_constraint(
+        "uq_pr_user_progress", "user_progress", ["pull_request_id", "user_id"]
+    )
 
     # 8. Drop team_members table
     op.drop_table("team_members")
@@ -174,7 +200,11 @@ def downgrade() -> None:
 
     # Revert user_progress
     op.drop_constraint("uq_pr_user_progress", "user_progress", type_="unique")
-    op.drop_constraint("user_progress_user_id_fkey", "user_progress", type_="foreignkey")
+    op.drop_constraint(
+        "user_progress_user_id_fkey",
+        "user_progress",
+        type_="foreignkey",
+    )
     op.alter_column("user_progress", "user_id", new_column_name="team_member_id")
     op.create_foreign_key(
         "user_progress_team_member_id_fkey",
@@ -185,11 +215,17 @@ def downgrade() -> None:
         ondelete="CASCADE",
     )
     op.create_unique_constraint(
-        "uq_pr_member_progress", "user_progress", ["pull_request_id", "team_member_id"]
+        "uq_pr_member_progress",
+        "user_progress",
+        ["pull_request_id", "team_member_id"],
     )
 
     # Revert pull_requests FK
-    op.drop_constraint("pull_requests_assignee_id_fkey", "pull_requests", type_="foreignkey")
+    op.drop_constraint(
+        "pull_requests_assignee_id_fkey",
+        "pull_requests",
+        type_="foreignkey",
+    )
     op.create_foreign_key(
         "pull_requests_assignee_id_fkey",
         "pull_requests",

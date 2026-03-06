@@ -28,9 +28,8 @@ sync_service = SyncService(interval_seconds=settings.sync_interval_seconds)
 
 def _run_alembic_upgrade() -> None:
     """Run alembic upgrade head synchronously at startup."""
-    from alembic.config import Config
-
     from alembic import command
+    from alembic.config import Config
 
     alembic_cfg = Config(str(Path(__file__).parent.parent / "alembic.ini"))
     alembic_cfg.set_main_option("script_location", str(Path(__file__).parent.parent / "alembic"))

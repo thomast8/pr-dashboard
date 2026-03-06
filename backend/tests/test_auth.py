@@ -1,10 +1,8 @@
 """Tests for authentication (HMAC-signed cookies)."""
 
-import time
-
 import pytest
 
-from src.api.auth import _sign, _verify, is_authenticated
+from src.api.auth import _sign, _verify
 
 
 class TestHmacSigning:
@@ -37,9 +35,7 @@ class TestAuthEndpoints:
 
     @pytest.mark.asyncio
     async def test_login_no_password_always_succeeds(self, client):
-        resp = await client.post(
-            "/api/auth/login", json={"password": "anything"}
-        )
+        resp = await client.post("/api/auth/login", json={"password": "anything"})
         assert resp.status_code == 200
         data = resp.json()
         assert data["authenticated"] is True

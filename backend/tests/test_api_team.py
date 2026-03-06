@@ -1,6 +1,19 @@
-"""Tests for the team API endpoints."""
+"""Tests for the team (users) API endpoints."""
 
 import pytest
+import pytest_asyncio
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.models.tables import User
+
+
+@pytest_asyncio.fixture
+async def seed_user(db_session: AsyncSession):
+    """Create a user for team tests."""
+    user = User(github_id=100, login="alice", name="Alice")
+    db_session.add(user)
+    await db_session.commit()
+    return user
 
 
 @pytest.mark.asyncio
@@ -11,63 +24,26 @@ async def test_list_team_empty(client):
 
 
 @pytest.mark.asyncio
-async def test_add_team_member(client):
-    resp = await client.post(
-        "/api/team",
-        json={"display_name": "Alice", "github_login": "alice", "email": "alice@example.com"},
-    )
-    assert resp.status_code == 201
-    data = resp.json()
-    assert data["display_name"] == "Alice"
-    assert data["github_login"] == "alice"
-    assert data["is_active"] is True
+async def test_list_team_with_user(client, seed_user):
+    resp = await client.get("/api/team")
+    assert resp.status_code == 200
+    users = resp.json()
+    assert len(users) == 1
+    assert users[0]["login"] == "alice"
+    assert users[0]["name"] == "Alice"
 
 
 @pytest.mark.asyncio
-async def test_update_team_member(client):
-    # Create
-    create_resp = await client.post(
-        "/api/team", json={"display_name": "Bob"}
-    )
-    member_id = create_resp.json()["id"]
-
-    # Update
+async def test_update_user(client, seed_user):
     resp = await client.put(
-        f"/api/team/{member_id}",
-        json={"display_name": "Robert", "github_login": "robertb"},
+        f"/api/team/{seed_user.id}",
+        json={"is_active": False},
     )
     assert resp.status_code == 200
-    assert resp.json()["display_name"] == "Robert"
-    assert resp.json()["github_login"] == "robertb"
+    assert resp.json()["is_active"] is False
 
 
 @pytest.mark.asyncio
-async def test_deactivate_team_member(client):
-    create_resp = await client.post(
-        "/api/team", json={"display_name": "Charlie"}
-    )
-    member_id = create_resp.json()["id"]
-
-    resp = await client.delete(f"/api/team/{member_id}")
-    assert resp.status_code == 204
-
-    # Verify deactivated
-    list_resp = await client.get("/api/team")
-    members = list_resp.json()
-    deactivated = [m for m in members if m["id"] == member_id]
-    assert len(deactivated) == 1
-    assert deactivated[0]["is_active"] is False
-
-
-@pytest.mark.asyncio
-async def test_update_nonexistent_member(client):
-    resp = await client.put(
-        "/api/team/99999", json={"display_name": "Nobody"}
-    )
-    assert resp.status_code == 404
-
-
-@pytest.mark.asyncio
-async def test_deactivate_nonexistent_member(client):
-    resp = await client.delete("/api/team/99999")
+async def test_update_nonexistent_user(client):
+    resp = await client.put("/api/team/99999", json={"is_active": False})
     assert resp.status_code == 404

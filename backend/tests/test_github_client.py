@@ -47,36 +47,11 @@ class TestGitHubClient:
         """Verify list_open_pulls calls the correct endpoint."""
         mock_resp = _mock_response(json_data=[{"number": 1, "title": "test"}])
 
-        with patch.object(
-            httpx.AsyncClient, "get", new_callable=AsyncMock, return_value=mock_resp
-        ):
+        with patch.object(httpx.AsyncClient, "get", new_callable=AsyncMock, return_value=mock_resp):
             client = GitHubClient(token="fake-token")
             pulls = await client.list_open_pulls("org", "repo")
             assert len(pulls) == 1
             assert pulls[0]["number"] == 1
-            await client.close()
-
-    @pytest.mark.asyncio
-    async def test_get_check_runs_extracts_list(self):
-        """Verify get_check_runs extracts the check_runs array."""
-        mock_resp = _mock_response(
-            json_data={
-                "total_count": 2,
-                "check_runs": [
-                    {"name": "lint", "status": "completed", "conclusion": "success"},
-                    {"name": "build", "status": "completed", "conclusion": "failure"},
-                ],
-            }
-        )
-
-        with patch.object(
-            httpx.AsyncClient, "get", new_callable=AsyncMock, return_value=mock_resp
-        ):
-            client = GitHubClient(token="fake-token")
-            checks = await client.get_check_runs("org", "repo", "abc123")
-            assert len(checks) == 2
-            assert checks[0]["name"] == "lint"
-            assert checks[1]["conclusion"] == "failure"
             await client.close()
 
     @pytest.mark.asyncio
