@@ -398,8 +398,15 @@
   color: var(--text-primary);
 }
 
-.searchInput {
+.searchRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   margin: 0.75rem 1.25rem;
+}
+
+.searchInput {
+  flex: 1;
   padding: 0.5rem 0.75rem;
   background: var(--bg-input);
   border: 1px solid var(--border-default);
@@ -411,6 +418,34 @@
 }
 .searchInput:focus {
   border-color: var(--accent-blue);
+}
+
+.refreshBtn {
+  background: none;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  font-size: 1rem;
+  padding: 0.4rem 0.55rem;
+  cursor: pointer;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.refreshBtn:hover {
+  color: var(--text-primary);
+  border-color: var(--text-muted);
+}
+.refreshBtn:disabled {
+  cursor: default;
+}
+
+.refreshSpin {
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .repoList {

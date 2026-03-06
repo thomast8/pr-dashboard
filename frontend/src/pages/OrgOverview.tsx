@@ -34,9 +34,10 @@ function RepoBrowser({ space, onClose }: { space: Space; onClose: () => void }) 
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
 
-  const { data: available, isLoading } = useQuery({
-    queryKey: ['repos', 'available', space.id],
+  const { data: available, isLoading, isFetching, refetch } = useQuery({
+    queryKey: ['available-repos', space.id],
     queryFn: () => api.listSpaceAvailableRepos(space.id),
+    staleTime: 5 * 60 * 1000,
   });
 
   const addMutation = useMutation({
@@ -44,9 +45,12 @@ function RepoBrowser({ space, onClose }: { space: Space; onClose: () => void }) 
       const [owner, name] = repo.full_name.split('/');
       return api.addRepo(name, space.id, owner);
     },
-    onSuccess: () => {
+    onSuccess: (_data, trackedRepo) => {
       qc.invalidateQueries({ queryKey: ['repos'] });
-      qc.invalidateQueries({ queryKey: ['repos', 'available', space.id] });
+      qc.setQueryData<AvailableRepo[]>(
+        ['available-repos', space.id],
+        (old) => old?.filter((r) => r.full_name !== trackedRepo.full_name),
+      );
     },
   });
 
@@ -70,13 +74,38 @@ function RepoBrowser({ space, onClose }: { space: Space; onClose: () => void }) 
             x
           </button>
         </div>
-        <input
-          className={styles.searchInput}
-          placeholder="Search repos..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          autoFocus
-        />
+        <div className={styles.searchRow}>
+          <input
+            className={styles.searchInput}
+            placeholder="Search repos..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            autoFocus
+          />
+          <button
+            className={styles.refreshBtn}
+            onClick={() => refetch()}
+            disabled={isFetching}
+            title="Refresh repo list from GitHub"
+          >
+            <svg
+              className={isFetching ? styles.refreshSpin : ''}
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M21 2v6h-6" />
+              <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
+              <path d="M3 22v-6h6" />
+              <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
+            </svg>
+          </button>
+        </div>
         <div className={styles.repoList}>
           {isLoading && (
             <div className={styles.listEmpty}>Loading repos...</div>

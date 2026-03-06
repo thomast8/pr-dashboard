@@ -30,9 +30,16 @@ export function SpaceManager({ onClose }: Props) {
   const toggleMutation = useMutation({
     mutationFn: ({ id, isActive }: { id: number; isActive: boolean }) =>
       api.toggleSpace(id, isActive),
-    onSuccess: () => {
+    onSuccess: (_data, { id, isActive }) => {
       qc.invalidateQueries({ queryKey: ['spaces'] });
       qc.invalidateQueries({ queryKey: ['repos'] });
+      if (isActive) {
+        qc.prefetchQuery({
+          queryKey: ['available-repos', id],
+          queryFn: () => api.listSpaceAvailableRepos(id),
+          staleTime: 5 * 60 * 1000,
+        });
+      }
     },
   });
 
