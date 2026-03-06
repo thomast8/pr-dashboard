@@ -147,6 +147,13 @@ export function RepoView() {
             dimAuthor={authorFilter || null}
             selectedPrId={selectedPrId}
             onSelectPr={selectPr}
+            team={activeTeam}
+            repoId={repo.id}
+            onAssign={(repoId, prNumber, assigneeId) => {
+              api.assignPr(repoId, prNumber, assigneeId).then(() => {
+                qc.invalidateQueries({ queryKey: ['pulls', repo?.id] });
+              });
+            }}
           />
         )}
       </div>
