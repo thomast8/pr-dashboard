@@ -49,6 +49,16 @@ export default function App() {
   const [user, setUser] = useState<GitHubUser | null>(null);
   const [oauthConfigured, setOauthConfigured] = useState(false);
 
+  const [toast, setToast] = useState<string | null>(null);
+
+  const showToast = useCallback((msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 5000);
+  }, []);
+
+  // Wire up global toast function
+  useEffect(() => { _showToast = showToast; }, [showToast]);
+
   useEffect(() => {
     fetch('/api/auth/me', { credentials: 'include' })
       .then((r) => r.json())
@@ -75,16 +85,6 @@ export default function App() {
   if (authEnabled && !authenticated) {
     return <Login onLogin={handleLogin} />;
   }
-
-  const [toast, setToast] = useState<string | null>(null);
-
-  const showToast = useCallback((msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(null), 5000);
-  }, []);
-
-  // Wire up global toast function
-  useEffect(() => { _showToast = showToast; }, [showToast]);
 
   return (
     <UserContext.Provider value={{ user, setUser, oauthConfigured }}>

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 
-const SSE_URL = import.meta.env.DEV ? 'http://localhost:8000/api/events' : '/api/events';
+const SSE_URL = '/api/events';
 const RECONNECT_BASE_MS = 1000;
 const RECONNECT_MAX_MS = 30000;
 
