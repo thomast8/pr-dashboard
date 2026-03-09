@@ -1,5 +1,6 @@
 """API routes for space management (auto-discovered GitHub connections)."""
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
 from loguru import logger
 from sqlalchemy import select
@@ -129,6 +130,16 @@ async def list_available_repos(space_id: int, session: AsyncSession = Depends(ge
             repos = await gh.list_org_repos(space.slug)
         else:
             repos = await gh.list_user_repos(space.slug)
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 403 and space.space_type == "org":
+            logger.warning(
+                f"Cannot list org repos for {space.slug} (403), " f"falling back to /user/repos"
+            )
+            all_repos = await gh.list_all_repos()
+            repos = [r for r in all_repos if r["owner"]["login"] == space.slug]
+        else:
+            await gh.close()
+            raise
     finally:
         await gh.close()
 

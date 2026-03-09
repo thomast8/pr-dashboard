@@ -58,6 +58,24 @@ class GitHubClient:
                     break
         return results
 
+    async def _patch(self, path: str, json: dict[str, Any] | None = None) -> Any:
+        client = await self._ensure_client()
+        resp = await client.patch(path, json=json)
+        resp.raise_for_status()
+        return resp.json()
+
+    async def _post_json(self, path: str, json: dict[str, Any] | None = None) -> Any:
+        client = await self._ensure_client()
+        resp = await client.post(path, json=json)
+        resp.raise_for_status()
+        return resp.json()
+
+    async def _delete_json(self, path: str, json: dict[str, Any] | None = None) -> Any:
+        client = await self._ensure_client()
+        resp = await client.request("DELETE", path, json=json)
+        resp.raise_for_status()
+        return resp.json()
+
     # ── Public API ──────────────────────────────────────────────
 
     async def list_open_pulls(self, owner: str, repo: str) -> list[dict[str, Any]]:
@@ -123,6 +141,35 @@ class GitHubClient:
     async def get_rate_limit(self) -> dict[str, Any]:
         """Check current rate limit status."""
         return await self._get("/rate_limit")
+
+    # ── Write operations ──────────────────────────────────────
+
+    async def set_assignees(
+        self, owner: str, repo: str, issue_number: int, logins: list[str]
+    ) -> dict[str, Any]:
+        """Set assignees on an issue/PR."""
+        return await self._patch(
+            f"/repos/{owner}/{repo}/issues/{issue_number}",
+            json={"assignees": logins},
+        )
+
+    async def request_reviewers(
+        self, owner: str, repo: str, pr_number: int, logins: list[str]
+    ) -> dict[str, Any]:
+        """Request reviewers for a PR."""
+        return await self._post_json(
+            f"/repos/{owner}/{repo}/pulls/{pr_number}/requested_reviewers",
+            json={"reviewers": logins},
+        )
+
+    async def remove_reviewers(
+        self, owner: str, repo: str, pr_number: int, logins: list[str]
+    ) -> dict[str, Any]:
+        """Remove requested reviewers from a PR."""
+        return await self._delete_json(
+            f"/repos/{owner}/{repo}/pulls/{pr_number}/requested_reviewers",
+            json={"reviewers": logins},
+        )
 
 
 def parse_gh_datetime(value: str | None) -> datetime | None:

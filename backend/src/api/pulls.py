@@ -1,6 +1,7 @@
 """API routes for pull requests."""
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from loguru import logger
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
@@ -10,20 +11,50 @@ from src.api.schemas import (
     CheckRunOut,
     PRDetail,
     PRSummary,
+    ReviewerUpdate,
     ReviewOut,
 )
 from src.db.engine import get_session
 from src.models.tables import (
     CheckRun,
+    GitHubAccount,
     PRStackMembership,
     PullRequest,
     Review,
+    Space,
     TrackedRepo,
     User,
 )
+from src.services.crypto import decrypt_token
 from src.services.events import broadcast_event
+from src.services.github_client import GitHubClient
 
 router = APIRouter(prefix="/api/repos/{repo_id}", tags=["pulls"])
+
+
+async def _get_github_client_for_pr(
+    session: AsyncSession, repo_id: int
+) -> tuple[GitHubClient, TrackedRepo]:
+    """Resolve the GitHub token for a tracked repo and return a client + repo."""
+    repo = await session.get(TrackedRepo, repo_id)
+    if not repo:
+        raise HTTPException(status_code=404, detail="Repo not found")
+
+    if repo.space_id:
+        space = await session.get(Space, repo.space_id)
+        if space and space.github_account_id:
+            account = await session.get(GitHubAccount, space.github_account_id)
+            if account and account.encrypted_token:
+                token = decrypt_token(account.encrypted_token)
+                return GitHubClient(token=token, base_url=account.base_url), repo
+
+    # Fallback to global token
+    from src.config.settings import settings
+
+    if settings.github_token:
+        return GitHubClient(token=settings.github_token), repo
+
+    raise HTTPException(status_code=400, detail="No GitHub token available for this repo")
 
 
 def _compute_ci_status(checks: list[CheckRun]) -> str:
@@ -224,7 +255,7 @@ async def update_assignee(
     body: AssigneeUpdate,
     session: AsyncSession = Depends(get_session),
 ) -> PRSummary:
-    """Set or clear the assignee for a PR."""
+    """Set or clear the assignee for a PR — writes to GitHub first."""
     result = await session.execute(
         select(PullRequest)
         .options(
@@ -238,16 +269,28 @@ async def update_assignee(
     if not pr:
         raise HTTPException(status_code=404, detail=f"PR #{number} not found")
 
+    # Resolve login for GitHub API
+    logins: list[str] = []
     if body.assignee_id is not None:
         user = await session.get(User, body.assignee_id)
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
+        logins = [user.login]
+
+    # Write to GitHub first
+    gh, repo = await _get_github_client_for_pr(session, repo_id)
+    try:
+        await gh.set_assignees(repo.owner, repo.name, number, logins)
+    except Exception as exc:
+        logger.warning(f"Failed to set assignees on GitHub for PR #{number}: {exc}")
+        raise HTTPException(status_code=502, detail=f"GitHub API error: {exc}") from exc
+    finally:
+        await gh.close()
 
     pr.assignee_id = body.assignee_id
     await session.commit()
     await session.refresh(pr, attribute_names=["assignee"])
 
-    # Look up stack_id
     membership = (
         await session.execute(
             select(PRStackMembership).where(PRStackMembership.pull_request_id == pr.id)
@@ -260,3 +303,83 @@ async def update_assignee(
     )
 
     return _pr_to_summary(pr, membership.stack_id if membership else None)
+
+
+async def _resolve_login_for_repo(session: AsyncSession, user: User, repo: TrackedRepo) -> str:
+    """Resolve the correct GitHub login for a user in the context of a repo's space.
+
+    If the user has a GitHubAccount linked to a space with the same slug as
+    the repo's space, use that account's login. Otherwise fall back to User.login.
+    """
+    if repo.space_id:
+        repo_space = await session.get(Space, repo.space_id)
+        if repo_space:
+            # Find user's GitHubAccount linked to a space with the same slug
+            result = await session.execute(
+                select(GitHubAccount)
+                .join(Space, Space.github_account_id == GitHubAccount.id)
+                .where(
+                    GitHubAccount.user_id == user.id,
+                    Space.slug == repo_space.slug,
+                )
+            )
+            account = result.scalar_one_or_none()
+            if account:
+                return account.login
+    return user.login
+
+
+@router.patch("/pulls/{number}/reviewers")
+async def update_reviewers(
+    repo_id: int,
+    number: int,
+    body: ReviewerUpdate,
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, list[dict]]:
+    """Add or remove requested reviewers — writes to GitHub first."""
+    result = await session.execute(
+        select(PullRequest).where(PullRequest.repo_id == repo_id, PullRequest.number == number)
+    )
+    pr = result.scalar_one_or_none()
+    if not pr:
+        raise HTTPException(status_code=404, detail=f"PR #{number} not found")
+
+    gh, repo = await _get_github_client_for_pr(session, repo_id)
+
+    # Resolve user_ids → GitHub logins in the repo's context
+    add_logins: list[str] = []
+    for uid in body.add_user_ids:
+        user = await session.get(User, uid)
+        if not user:
+            raise HTTPException(status_code=404, detail=f"User {uid} not found")
+        login = await _resolve_login_for_repo(session, user, repo)
+        add_logins.append(login)
+
+    try:
+        if add_logins:
+            await gh.request_reviewers(repo.owner, repo.name, number, add_logins)
+        if body.remove_logins:
+            await gh.remove_reviewers(repo.owner, repo.name, number, body.remove_logins)
+    except Exception as exc:
+        logger.warning(f"Failed to update reviewers on GitHub for PR #{number}: {exc}")
+        raise HTTPException(status_code=502, detail=f"GitHub API error: {exc}") from exc
+    finally:
+        await gh.close()
+
+    # Update local JSONB: add new, remove old
+    current = list(pr.github_requested_reviewers or [])
+    remove_set = set(body.remove_logins)
+    current = [r for r in current if r.get("login") not in remove_set]
+    existing_logins = {r.get("login") for r in current}
+    for login in add_logins:
+        if login not in existing_logins:
+            current.append({"login": login, "avatar_url": None, "github_id": None})
+    pr.github_requested_reviewers = current
+    await session.commit()
+
+    await broadcast_event(
+        "reviewers_update",
+        {"repo_id": repo_id, "number": number},
+    )
+
+    return {"github_requested_reviewers": pr.github_requested_reviewers or []}

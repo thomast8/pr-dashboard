@@ -1,6 +1,7 @@
 # PR Dashboard — TODO
 
 ## Completed
+- [x] Remove local overrides — sync everything with GitHub: assignees synced from GitHub during sync, assignee/reviewer changes write back to GitHub API, UserProgress table dropped (dashboard mirrors GitHub review state), card assignee display is read-only (edit in detail panel only) (2026-03-09)
 - [x] Per-repo visibility (private/shared): visibility moved from spaces to individual repos, each user only sees their own repos unless explicitly shared; spaces simplified to owner-only; alembic migrations run on startup (2026-03-06)
 - [x] Space visibility (private/shared): spaces default to private, users can toggle to shared so coworkers see them; repos inherit visibility from parent space; visibility filter applied to spaces and repos API endpoints (2026-03-06)
 - [x] Auto-discover spaces + multi-account support: GitHubAccount model, OAuth auto-discovers orgs/personal repos, toggle spaces on/off, link multiple GitHub accounts (personal + enterprise), no manual space creation (2026-03-05)

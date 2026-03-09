@@ -39,8 +39,7 @@ async def detect_stacks(session: AsyncSession, repo_id: int) -> list[PRStack]:
     # Log each PR's refs for debugging
     for pr in prs:
         logger.debug(
-            f"  [stack-detect] PR #{pr.number}: "
-            f"head_ref={pr.head_ref!r}, base_ref={pr.base_ref!r}"
+            f"  [stack-detect] PR #{pr.number}: head_ref={pr.head_ref!r}, base_ref={pr.base_ref!r}"
         )
 
     # Build lookup: head_ref → PR

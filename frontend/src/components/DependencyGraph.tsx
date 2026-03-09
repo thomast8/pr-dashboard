@@ -7,7 +7,7 @@
  */
 
 import { useMemo, useRef, useState, useEffect, useCallback } from 'react';
-import type { PRSummary, Stack, User } from '../api/client';
+import type { PRSummary, Stack } from '../api/client';
 import { StatusDot } from './StatusDot';
 import { Tooltip } from './Tooltip';
 import styles from './DependencyGraph.module.css';
@@ -16,13 +16,10 @@ interface Props {
   prs: PRSummary[];
   stacks: Stack[];
   highlightStackId: number | null;
-  dimAssigneeId: number | null;
+  dimReviewerLogin: string | null;
   dimAuthor: string | null;
   selectedPrId: number | null;
   onSelectPr: (id: number | null) => void;
-  team: User[];
-  repoId: number;
-  onAssign: (repoId: number, prNumber: number, assigneeId: number | null) => void;
 }
 
 const CARD_W = 210;
@@ -44,7 +41,7 @@ interface Arrow {
   dimmed: boolean;
 }
 
-export function DependencyGraph({ prs, stacks, highlightStackId, dimAssigneeId, dimAuthor, selectedPrId, onSelectPr, team, repoId, onAssign }: Props) {
+export function DependencyGraph({ prs, stacks, highlightStackId, dimReviewerLogin, dimAuthor, selectedPrId, onSelectPr }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
 
@@ -216,10 +213,13 @@ export function DependencyGraph({ prs, stacks, highlightStackId, dimAssigneeId, 
 
   const isDimmed = useCallback((pr: PRSummary) => {
     if (highlightedPrIds != null && !highlightedPrIds.has(pr.id)) return true;
-    if (dimAssigneeId != null && pr.assignee_id !== dimAssigneeId) return true;
+    if (dimReviewerLogin != null) {
+      const hasReviewer = pr.github_requested_reviewers?.some((r) => r.login === dimReviewerLogin);
+      if (!hasReviewer) return true;
+    }
     if (dimAuthor != null && pr.author !== dimAuthor) return true;
     return false;
-  }, [highlightedPrIds, dimAssigneeId, dimAuthor]);
+  }, [highlightedPrIds, dimReviewerLogin, dimAuthor]);
 
   function reviewBorderClass(pr: PRSummary): string {
     if (pr.review_state === 'approved' && !pr.rebased_since_approval) return styles.borderApproved;
@@ -257,22 +257,6 @@ export function DependencyGraph({ prs, stacks, highlightStackId, dimAssigneeId, 
           ) : (
             <span className={styles.noReviewers}>No reviewers</span>
           )}
-        </div>
-        <div className={styles.cardAssignee}>
-          <select
-            value={pr.assignee_id ?? ''}
-            onChange={(e) => {
-              e.stopPropagation();
-              const val = e.target.value;
-              onAssign(repoId, pr.number, val ? Number(val) : null);
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <option value="">Unassigned</option>
-            {team.map((m) => (
-              <option key={m.id} value={m.id}>{m.name || m.login}</option>
-            ))}
-          </select>
         </div>
         <div className={styles.cardFooter}>
           <Tooltip text={`CI: ${pr.ci_status}`} position="top">

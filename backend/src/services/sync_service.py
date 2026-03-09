@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.db.engine import async_session_factory
-from src.models.tables import CheckRun, PullRequest, Review, Space, TrackedRepo, User
+from src.models.tables import CheckRun, GitHubAccount, PullRequest, Review, Space, TrackedRepo, User
 from src.services.crypto import decrypt_token
 from src.services.events import broadcast_event
 from src.services.github_client import GitHubClient, parse_gh_datetime
@@ -279,6 +279,9 @@ class SyncService:
         # Auto-discover reviewer users
         await self._ensure_reviewer_users(session, gh_pr.get("requested_reviewers") or [])
 
+        # Resolve assignee from GitHub
+        assignee_id = await self._resolve_assignee(session, gh_pr)
+
         if pr is None:
             pr = PullRequest(
                 repo_id=repo_id,
@@ -299,6 +302,7 @@ class SyncService:
                 merged_at=parse_gh_datetime(gh_pr.get("merged_at")),
                 last_synced_at=now,
                 github_requested_reviewers=new_reviewers,
+                assignee_id=assignee_id,
             )
             session.add(pr)
             await session.flush()
@@ -313,8 +317,74 @@ class SyncService:
             pr.merged_at = parse_gh_datetime(gh_pr.get("merged_at"))
             pr.last_synced_at = now
             pr.github_requested_reviewers = new_reviewers
+            pr.assignee_id = assignee_id
 
         return pr
+
+    async def _find_or_create_user(
+        self,
+        session: AsyncSession,
+        github_id: int,
+        login: str,
+        avatar_url: str | None = None,
+        name: str | None = None,
+    ) -> User:
+        """Find a User by github_id, checking linked GitHubAccounts first.
+
+        If the github_id belongs to a GitHubAccount linked to an existing User
+        (e.g. a second account added via OAuth), return that User instead of
+        creating a duplicate.
+        """
+        # Check if this github_id is already linked as a GitHubAccount
+        acct_result = await session.execute(
+            select(GitHubAccount).where(GitHubAccount.github_id == github_id)
+        )
+        acct = acct_result.scalar_one_or_none()
+        if acct:
+            user = await session.get(User, acct.user_id)
+            if user:
+                return user
+
+        # Fall back to direct User.github_id lookup
+        result = await session.execute(select(User).where(User.github_id == github_id))
+        user = result.scalar_one_or_none()
+        if user is None:
+            user = User(
+                github_id=github_id,
+                login=login,
+                avatar_url=avatar_url,
+                name=name,
+                is_active=True,
+            )
+            session.add(user)
+            await session.flush()
+        else:
+            user.login = login
+            if avatar_url:
+                user.avatar_url = avatar_url
+        return user
+
+    async def _resolve_assignee(self, session: AsyncSession, gh_pr: dict) -> int | None:
+        """Resolve GitHub assignee to a local User id."""
+        assignees = gh_pr.get("assignees") or []
+        if not assignees:
+            single = gh_pr.get("assignee")
+            if single:
+                assignees = [single]
+        if not assignees:
+            return None
+        gh_assignee = assignees[0]
+        github_id = gh_assignee.get("id")
+        if not github_id:
+            return None
+        user = await self._find_or_create_user(
+            session,
+            github_id,
+            gh_assignee["login"],
+            gh_assignee.get("avatar_url"),
+            gh_assignee.get("name"),
+        )
+        return user.id
 
     async def _ensure_reviewer_users(self, session: AsyncSession, gh_reviewers: list[dict]) -> None:
         """Upsert User rows for requested reviewers so they appear in team dropdowns."""
@@ -322,22 +392,13 @@ class SyncService:
             github_id = reviewer.get("id")
             if not github_id:
                 continue
-            result = await session.execute(select(User).where(User.github_id == github_id))
-            user = result.scalar_one_or_none()
-            if user is None:
-                session.add(
-                    User(
-                        github_id=github_id,
-                        login=reviewer["login"],
-                        avatar_url=reviewer.get("avatar_url"),
-                        name=reviewer.get("name"),
-                        is_active=True,
-                    )
-                )
-            else:
-                user.login = reviewer["login"]
-                if reviewer.get("avatar_url"):
-                    user.avatar_url = reviewer["avatar_url"]
+            await self._find_or_create_user(
+                session,
+                github_id,
+                reviewer["login"],
+                reviewer.get("avatar_url"),
+                reviewer.get("name"),
+            )
 
     async def _upsert_check_runs(
         self, session: AsyncSession, pr_id: int, checks: list[dict]
