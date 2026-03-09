@@ -28,7 +28,7 @@ PUBLIC_PATHS = {
     "/api/auth/github/callback",
     "/api/health",
 }
-PUBLIC_PREFIXES = ("/api/events", "/api/auth/dev-login/")
+PUBLIC_PREFIXES = ("/api/auth/dev-login/",)
 
 
 class AuthMiddleware(BaseHTTPMiddleware):

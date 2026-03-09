@@ -311,7 +311,7 @@ async def update_assignee(
         await gh.set_assignees(repo.owner, repo.name, number, logins)
     except Exception as exc:
         logger.warning(f"Failed to set assignees on GitHub for PR #{number}: {exc}")
-        raise HTTPException(status_code=502, detail=f"GitHub API error: {exc}") from exc
+        raise HTTPException(status_code=502, detail="GitHub API error") from exc
     finally:
         await gh.close()
 
@@ -399,7 +399,7 @@ async def update_reviewers(
             await gh.remove_reviewers(repo.owner, repo.name, number, body.remove_logins)
     except Exception as exc:
         logger.warning(f"Failed to update reviewers on GitHub for PR #{number}: {exc}")
-        raise HTTPException(status_code=502, detail=f"GitHub API error: {exc}") from exc
+        raise HTTPException(status_code=502, detail="GitHub API error") from exc
     finally:
         await gh.close()
 

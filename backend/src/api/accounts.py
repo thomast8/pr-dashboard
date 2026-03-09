@@ -70,7 +70,8 @@ async def link_account_with_token(
     try:
         gh_user = await gh.get_authenticated_user()
     except Exception as exc:
-        raise HTTPException(status_code=400, detail=f"Invalid token or unreachable: {exc}") from exc
+        logger.warning(f"Token validation failed: {exc}")
+        raise HTTPException(status_code=400, detail="Invalid token or GitHub unreachable") from exc
     finally:
         await gh.close()
 
@@ -193,9 +194,10 @@ async def add_space_to_account(
         else:
             await gh.list_user_repos(body.slug)
     except Exception as exc:
+        logger.warning(f"Cannot access {body.space_type} '{body.slug}': {exc}")
         raise HTTPException(
             status_code=400,
-            detail=f"Cannot access {body.space_type} '{body.slug}': {exc}",
+            detail=f"Cannot access {body.space_type} '{body.slug}'",
         ) from exc
     finally:
         await gh.close()
