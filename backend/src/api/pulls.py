@@ -452,15 +452,29 @@ async def update_priority(
     old_priority = pr.manual_priority
 
     # Sync labels to GitHub
+    priority_label_colors = {"high": "D73A4A", "low": "6B7280"}
+    priority_label_descriptions = {
+        "high": "High priority — review/merge first",
+        "low": "Low priority — review/merge last",
+    }
+
     gh, repo = await _get_github_client_for_pr(session, repo_id)
     try:
         # Remove old priority label if it changed
         if old_priority and old_priority != body.priority:
             await gh.remove_label(repo.owner, repo.name, number, f"priority:{old_priority}")
 
-        # Add new priority label
+        # Ensure the label exists with the right color, then add it
         if body.priority:
-            await gh.add_labels(repo.owner, repo.name, number, [f"priority:{body.priority}"])
+            label_name = f"priority:{body.priority}"
+            await gh.ensure_label(
+                repo.owner,
+                repo.name,
+                label_name,
+                priority_label_colors[body.priority],
+                priority_label_descriptions[body.priority],
+            )
+            await gh.add_labels(repo.owner, repo.name, number, [label_name])
     except Exception as exc:
         logger.warning(f"Failed to sync priority labels on GitHub for PR #{number}: {exc}")
         raise HTTPException(status_code=502, detail="GitHub API error") from exc

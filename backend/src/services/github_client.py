@@ -171,6 +171,23 @@ class GitHubClient:
             json={"reviewers": logins},
         )
 
+    async def ensure_label(
+        self, owner: str, repo: str, name: str, color: str, description: str = ""
+    ) -> None:
+        """Create a label if it doesn't exist, or update its color if it does."""
+        client = await self._ensure_client()
+        resp = await client.get(f"/repos/{owner}/{repo}/labels/{name}")
+        if resp.status_code == 404:
+            await self._post_json(
+                f"/repos/{owner}/{repo}/labels",
+                json={"name": name, "color": color, "description": description},
+            )
+        elif resp.is_success and resp.json().get("color") != color:
+            await self._patch(
+                f"/repos/{owner}/{repo}/labels/{name}",
+                json={"color": color, "description": description},
+            )
+
     async def add_labels(
         self, owner: str, repo: str, issue_number: int, labels: list[str]
     ) -> list[dict[str, Any]]:
