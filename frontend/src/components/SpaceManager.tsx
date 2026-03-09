@@ -199,7 +199,30 @@ function TokenLinkForm({
       <details className={styles.tokenGuide}>
         <summary>How to create a token</summary>
         <div className={styles.tokenGuideBody}>
-          <p><strong>Option A: Fine-grained token</strong> (recommended)</p>
+          <p><strong>Option A: Classic token</strong> (recommended for multi-org)</p>
+          <ol>
+            <li>
+              Open{' '}
+              <a href="https://github.com/settings/tokens/new" target="_blank" rel="noopener noreferrer">
+                github.com &rarr; Settings &rarr; Classic tokens
+              </a>
+            </li>
+            <li><strong>Note</strong> &mdash; anything you like (e.g. "PR Dashboard")</li>
+            <li><strong>Expiration</strong> &mdash; 90 days is a good default</li>
+            <li>Select scopes: <code>repo</code> and <code>read:org</code></li>
+            <li>Click <strong>Generate token</strong> and copy it</li>
+            <li>
+              <strong>SSO orgs only:</strong> Back on the tokens list, click{' '}
+              <strong>Configure SSO</strong> next to the token and <strong>Authorize</strong> it
+              for each org that uses SAML single sign-on. The token won't work for SSO-protected
+              orgs until this step is completed.
+            </li>
+          </ol>
+          <p><strong>Option B: Fine-grained token</strong></p>
+          <p className={styles.tokenGuideNote}>
+            Fine-grained tokens are scoped to a single owner (one org or your personal account).
+            You'll need a separate token for each org you want to track.
+          </p>
           <ol>
             <li>
               Open{' '}
@@ -214,34 +237,13 @@ function TokenLinkForm({
             <li>
               Under <strong>Repository permissions</strong>, set:
               <ul>
-                <li><strong>Pull requests</strong> &rarr; Read-only</li>
+                <li><strong>Pull requests</strong> &rarr; Read and write</li>
                 <li><strong>Actions</strong> &rarr; Read-only</li>
                 <li><em>Metadata</em> &rarr; Read-only (selected automatically)</li>
               </ul>
             </li>
-            <li>
-              Under <strong>Organization permissions</strong>, set:
-              <ul>
-                <li><strong>Members</strong> &rarr; Read-only (needed to discover your orgs)</li>
-              </ul>
-            </li>
             <li>Click <strong>Generate token</strong> and copy it</li>
           </ol>
-          <p><strong>Option B: Classic token</strong></p>
-          <ol>
-            <li>
-              Open{' '}
-              <a href="https://github.com/settings/tokens/new" target="_blank" rel="noopener noreferrer">
-                github.com &rarr; Settings &rarr; Classic tokens
-              </a>
-            </li>
-            <li>Select scopes: <code>repo</code> and <code>read:org</code></li>
-            <li>Click <strong>Generate token</strong> and copy it</li>
-          </ol>
-          <p className={styles.tokenGuideSso}>
-            If your org uses SAML SSO, click <strong>Configure SSO</strong> next to the token
-            after creating it and authorize it for your org.
-          </p>
         </div>
       </details>
       {error && <div className={styles.tokenFormError}>{error}</div>}

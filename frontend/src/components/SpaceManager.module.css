@@ -292,10 +292,12 @@
   font-size: 0.68rem;
 }
 
-.tokenGuideSso {
+.tokenGuideNote {
   border-left: 2px solid var(--accent-gold);
   padding-left: 0.5rem;
   margin-top: 0.4rem;
+  font-size: 0.72rem;
+  color: var(--text-secondary);
 }
 
 .tokenFormError {
