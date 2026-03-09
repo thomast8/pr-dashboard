@@ -110,47 +110,47 @@ export function DependencyGraph({ prs, stacks, highlightStackId, dimAssigneeId, 
       }
     }
 
-    // BFS layout with wrapping: each chain gets its own row band.
-    // Within a chain, columns wrap at maxCols.
+    // Tree layout: column = depth, row = vertical position.
+    // Siblings stack vertically; parent centered among children.
     const positions: CardPos[] = [];
-    let globalRow = 0; // tracks the next available row across all chains
+    let globalRow = 0; // next available row across all trees
 
     for (const root of roots) {
-      // Flatten this chain via BFS to get ordered nodes
-      const chainNodes: PRSummary[] = [];
-      const queue: PRSummary[] = [root];
-      const visited = new Set<number>();
-
-      while (queue.length > 0) {
-        const pr = queue.shift()!;
-        if (visited.has(pr.id)) continue;
-        visited.add(pr.id);
-        chainNodes.push(pr);
+      // Recursive function: returns the row span [startRow, endRow] used
+      function layoutNode(pr: PRSummary, depth: number, startRow: number): number {
         const kids = children.get(pr.id) || [];
+        if (kids.length === 0) {
+          // Leaf node
+          positions.push({
+            x: PAD + depth * (CARD_W + GAP_X),
+            y: PAD + startRow * (CARD_H + GAP_Y),
+            pr,
+          });
+          return startRow; // occupied one row
+        }
+
+        // Layout children first to determine vertical span
+        let nextRow = startRow;
+        const childRows: number[] = [];
         for (const child of kids) {
-          if (!visited.has(child.id)) queue.push(child);
+          const endRow = layoutNode(child, depth + 1, nextRow);
+          childRows.push(nextRow + (endRow - nextRow) / 2); // center of each child's span
+          nextRow = endRow + 1;
         }
-      }
 
-      // Place chain nodes with wrapping
-      const chainStartRow = globalRow;
-      let col = 0;
-      let row = chainStartRow;
-
-      for (const pr of chainNodes) {
-        if (col >= maxCols) {
-          col = 0;
-          row += 1;
-        }
+        // Center parent among its children
+        const parentRow = (childRows[0] + childRows[childRows.length - 1]) / 2;
         positions.push({
-          x: PAD + col * (CARD_W + GAP_X),
-          y: PAD + row * (CARD_H + GAP_Y),
+          x: PAD + depth * (CARD_W + GAP_X),
+          y: PAD + parentRow * (CARD_H + GAP_Y),
           pr,
         });
-        col += 1;
+
+        return nextRow - 1; // last row used
       }
 
-      globalRow = row + 1; // next chain starts on a new row
+      const lastRow = layoutNode(root, 0, globalRow);
+      globalRow = lastRow + 1;
     }
 
     // Position map for arrow computation

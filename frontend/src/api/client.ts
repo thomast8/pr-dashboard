@@ -89,6 +89,7 @@ export interface PRSummary {
   stack_id: number | null;
   assignee_id: number | null;
   assignee_name: string | null;
+  github_requested_reviewers: { login: string; avatar_url: string | null }[];
   rebased_since_approval: boolean;
 }
 
@@ -237,6 +238,11 @@ export const api = {
     request<Stack[]>(`/api/repos/${repoId}/stacks`),
   getStack: (repoId: number, stackId: number) =>
     request<Stack>(`/api/repos/${repoId}/stacks/${stackId}`),
+  renameStack: (repoId: number, stackId: number, name: string) =>
+    request<Stack>(`/api/repos/${repoId}/stacks/${stackId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ name }),
+    }),
 
   // Team (users from OAuth)
   listTeam: () => request<User[]>('/api/team'),

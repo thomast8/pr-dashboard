@@ -33,12 +33,23 @@ async def detect_stacks(session: AsyncSession, repo_id: int) -> list[PRStack]:
     prs = list(result.scalars().all())
 
     if not prs:
+        logger.debug(f"  [stack-detect] repo_id={repo_id}: no open PRs found")
         return []
+
+    # Log each PR's refs for debugging
+    for pr in prs:
+        logger.debug(
+            f"  [stack-detect] PR #{pr.number}: "
+            f"head_ref={pr.head_ref!r}, base_ref={pr.base_ref!r}"
+        )
 
     # Build lookup: head_ref → PR
     head_to_pr: dict[str, PullRequest] = {}
     for pr in prs:
         head_to_pr[pr.head_ref] = pr
+
+    entries = ", ".join(f"{k!r}: PR#{v.number}" for k, v in head_to_pr.items())
+    logger.debug(f"  [stack-detect] head_to_pr map: {{{entries}}}")
 
     # Build adjacency: parent PR → list of child PRs
     # A child PR's base_ref == parent PR's head_ref
@@ -50,6 +61,10 @@ async def detect_stacks(session: AsyncSession, repo_id: int) -> list[PRStack]:
         if parent and parent.id != pr.id:
             children[parent.id].append(pr)
             has_parent.add(pr.id)
+            logger.debug(f"  [stack-detect] edge: PR #{parent.number} -> PR #{pr.number}")
+
+    if not children:
+        logger.debug("  [stack-detect] no parent-child edges found")
 
     # Root PRs: those that have children but no parent in the stack
     # (i.e., they target the default branch or a branch not owned by another open PR)
@@ -58,13 +73,26 @@ async def detect_stacks(session: AsyncSession, repo_id: int) -> list[PRStack]:
         if pr.id not in has_parent and pr.id in children:
             roots.append(pr)
 
-    # Also detect standalone chains where a PR is ONLY a child (leaf of stack)
-    # but we need to include single-depth stacks too
-    # Re-check: any PR with children is a potential root if it's not itself a child
-    # Any PR that is a child but has no children is a leaf — handled via BFS
+    if roots:
+        logger.debug(f"  [stack-detect] roots: {[f'PR #{r.number}' for r in roots]}")
+    else:
+        logger.warning(
+            f"  [stack-detect] repo_id={repo_id}: "
+            "no roots found (no PR has children without "
+            "itself having a parent)"
+        )
 
     if not roots:
         return []
+
+    # Save user-renamed stack names (not starting with "Stack: ") keyed by root_pr_id
+    existing_stacks = (
+        (await session.execute(select(PRStack).where(PRStack.repo_id == repo_id))).scalars().all()
+    )
+    preserved_names: dict[int, str] = {}
+    for s in existing_stacks:
+        if s.root_pr_id and s.name and not s.name.startswith("Stack: "):
+            preserved_names[s.root_pr_id] = s.name
 
     # Clear existing stacks for this repo
     await session.execute(
@@ -93,8 +121,8 @@ async def detect_stacks(session: AsyncSession, repo_id: int) -> list[PRStack]:
         if len(stack_prs) < 2:
             continue
 
-        # Generate a name from the root PR's head_ref
-        stack_name = f"Stack: {root_pr.head_ref}"
+        # Reuse preserved user-given name, or generate default
+        stack_name = preserved_names.get(root_pr.id, f"Stack: {root_pr.head_ref}")
 
         stack = PRStack(
             repo_id=repo_id,

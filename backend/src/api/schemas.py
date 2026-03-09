@@ -129,6 +129,7 @@ class PRSummary(BaseModel):
     stack_id: int | None = None
     assignee_id: int | None = None
     assignee_name: str | None = None
+    github_requested_reviewers: list[dict] = []
     rebased_since_approval: bool = False
 
 
@@ -145,6 +146,10 @@ class StackMemberOut(BaseModel):
     position: int
     parent_pr_id: int | None
     pr: PRSummary
+
+
+class StackRename(BaseModel):
+    name: str
 
 
 class StackOut(BaseModel):

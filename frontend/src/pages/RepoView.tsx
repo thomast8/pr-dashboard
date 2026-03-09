@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { api, type PRSummary, type RepoSummary, type User } from '../api/client';
 import { DependencyGraph } from '../components/DependencyGraph';
 import { PRDetailPanel } from '../components/PRDetailPanel';
@@ -20,6 +20,9 @@ export function RepoView() {
   const [ciFilter, setCiFilter] = useState('');
   const [stackFilter, setStackFilter] = useState<number | null>(null);
   const [assigneeFilter, setAssigneeFilter] = useState<number | null>(null);
+  const [renamingStack, setRenamingStack] = useState(false);
+  const [renameValue, setRenameValue] = useState('');
+  const renameInputRef = useRef<HTMLInputElement>(null);
 
   // Get repo ID from the repos list
   // Poll while repo hasn't been synced yet so we pick up last_synced_at
@@ -53,6 +56,15 @@ export function RepoView() {
     queryFn: api.listTeam,
   });
   const activeTeam = team?.filter((m: User) => m.is_active) || [];
+
+  const renameMutation = useMutation({
+    mutationFn: ({ stackId, name }: { stackId: number; name: string }) =>
+      api.renameStack(repo!.id, stackId, name),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['stacks', repo?.id] });
+      setRenamingStack(false);
+    },
+  });
 
   const syncMutation = useMutation({
     mutationFn: () => api.syncRepo(repo!.id),
@@ -117,18 +129,58 @@ export function RepoView() {
             </select>
           </Tooltip>
           <Tooltip text="Highlight a stack of dependent PRs" position="bottom">
-            <select
-              value={stackFilter ?? ''}
-              onChange={(e) => setStackFilter(e.target.value ? Number(e.target.value) : null)}
-              className={styles.select}
-            >
-              <option value="">All PRs</option>
-              {(stacks || []).map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name || `Stack #${s.id}`} ({s.members.length} PRs)
-                </option>
-              ))}
-            </select>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              {renamingStack && stackFilter ? (
+                <input
+                  ref={renameInputRef}
+                  className={styles.select}
+                  value={renameValue}
+                  onChange={(e) => setRenameValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && renameValue.trim()) {
+                      renameMutation.mutate({ stackId: stackFilter, name: renameValue.trim() });
+                    } else if (e.key === 'Escape') {
+                      setRenamingStack(false);
+                    }
+                  }}
+                  onBlur={() => {
+                    if (renameValue.trim() && stackFilter) {
+                      renameMutation.mutate({ stackId: stackFilter, name: renameValue.trim() });
+                    } else {
+                      setRenamingStack(false);
+                    }
+                  }}
+                  autoFocus
+                />
+              ) : (
+                <select
+                  value={stackFilter ?? ''}
+                  onChange={(e) => setStackFilter(e.target.value ? Number(e.target.value) : null)}
+                  className={styles.select}
+                >
+                  <option value="">All PRs</option>
+                  {(stacks || []).map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name || `Stack #${s.id}`} ({s.members.length} PRs)
+                    </option>
+                  ))}
+                </select>
+              )}
+              {stackFilter && !renamingStack && (
+                <button
+                  className={styles.syncBtn}
+                  style={{ padding: '2px 6px', fontSize: '0.85rem' }}
+                  title="Rename stack"
+                  onClick={() => {
+                    const selected = (stacks || []).find((s) => s.id === stackFilter);
+                    setRenameValue(selected?.name || '');
+                    setRenamingStack(true);
+                  }}
+                >
+                  ✏
+                </button>
+              )}
+            </div>
           </Tooltip>
           <Tooltip text="Dims PRs not assigned to this person" position="bottom">
             <select

@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.api.pulls import _compute_ci_status, _compute_review_state, _rebased_since_approval
-from src.api.schemas import PRSummary, StackMemberOut, StackOut
+from src.api.schemas import PRSummary, StackMemberOut, StackOut, StackRename
 from src.db.engine import get_session
 from src.models.tables import (
     PRStack,
@@ -108,6 +108,50 @@ async def get_stack(
     stack = result.scalar_one_or_none()
     if not stack:
         raise HTTPException(status_code=404, detail="Stack not found")
+
+    return StackOut(
+        id=stack.id,
+        name=stack.name,
+        root_pr_id=stack.root_pr_id,
+        detected_at=stack.detected_at,
+        members=[
+            StackMemberOut(
+                pull_request_id=m.pull_request_id,
+                position=m.position,
+                parent_pr_id=m.parent_pr_id,
+                pr=_pr_summary_from_model(m.pull_request),
+            )
+            for m in sorted(stack.memberships, key=lambda x: x.position)
+        ],
+    )
+
+
+@router.patch("/stacks/{stack_id}", response_model=StackOut)
+async def rename_stack(
+    repo_id: int,
+    stack_id: int,
+    body: StackRename,
+    session: AsyncSession = Depends(get_session),
+) -> StackOut:
+    """Rename a stack."""
+    result = await session.execute(
+        select(PRStack)
+        .where(PRStack.id == stack_id, PRStack.repo_id == repo_id)
+        .options(
+            selectinload(PRStack.memberships)
+            .selectinload(PRStackMembership.pull_request)
+            .selectinload(PullRequest.check_runs),
+            selectinload(PRStack.memberships)
+            .selectinload(PRStackMembership.pull_request)
+            .selectinload(PullRequest.reviews),
+        )
+    )
+    stack = result.scalar_one_or_none()
+    if not stack:
+        raise HTTPException(status_code=404, detail="Stack not found")
+
+    stack.name = body.name.strip()
+    await session.flush()
 
     return StackOut(
         id=stack.id,
