@@ -16,7 +16,9 @@ interface Props {
 export function PRDetailPanel({ repoId, prId, onClose }: Props) {
   const qc = useQueryClient();
   const [addReviewerOpen, setAddReviewerOpen] = useState(false);
+  const [reviewerSearch, setReviewerSearch] = useState('');
   const addReviewerRef = useRef<HTMLDivElement>(null);
+  const reviewerSearchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -111,13 +113,33 @@ export function PRDetailPanel({ repoId, prId, onClose }: Props) {
     },
   });
 
-  // Team members not already requested as reviewers
+  // All GitHub logins actively involved in this repo (PR authors + requested reviewers)
+  const repoInvolvedLogins = new Set<string>();
+  for (const p of pulls || []) {
+    repoInvolvedLogins.add(p.author);
+    for (const r of p.github_requested_reviewers || []) {
+      repoInvolvedLogins.add(r.login);
+    }
+  }
+
+  // Team members not already requested as reviewers, split into repo-involved vs others
   const currentReviewerLogins = new Set(
     pr?.github_requested_reviewers.map((r) => r.login) || [],
   );
-  const availableReviewers = activeTeam.filter(
+  const isInvolvedInRepo = (m: User) =>
+    repoInvolvedLogins.has(m.login) || m.linked_accounts.some((a) => repoInvolvedLogins.has(a.login));
+
+  const notAlreadyRequested = activeTeam.filter(
     (m: User) => !currentReviewerLogins.has(m.login),
   );
+  const repoReviewers = notAlreadyRequested.filter(isInvolvedInRepo);
+  const otherReviewers = notAlreadyRequested.filter((m) => !isInvolvedInRepo(m));
+
+  const matchesSearch = (m: User) => {
+    if (!reviewerSearch) return true;
+    const q = reviewerSearch.toLowerCase();
+    return (m.name || '').toLowerCase().includes(q) || m.login.toLowerCase().includes(q);
+  };
 
 
   return (
@@ -204,43 +226,93 @@ export function PRDetailPanel({ repoId, prId, onClose }: Props) {
             ) : (
               <div className={styles.ghUnassigned}>No reviewers requested</div>
             )}
-            {availableReviewers.length > 0 && (
-              <div className={styles.addReviewerDropdown} ref={addReviewerRef}>
-                <button
-                  className={styles.addReviewerTrigger}
-                  onClick={() => setAddReviewerOpen(!addReviewerOpen)}
-                  disabled={addReviewerMutation.isPending}
-                >
-                  <span className={styles.addReviewerPlaceholder}>Add reviewer...</span>
-                  <span className={styles.addReviewerChevron}>{addReviewerOpen ? '\u25B4' : '\u25BE'}</span>
-                </button>
-                {addReviewerOpen && (
-                  <div className={styles.addReviewerMenu}>
-                    {availableReviewers.map((m: User) => {
-                      const resolved = resolveLogin(m);
-                      return (
-                        <div
-                          key={m.id}
-                          className={styles.addReviewerMenuItem}
-                          onClick={() => {
-                            addReviewerMutation.mutate(m.id);
-                            setAddReviewerOpen(false);
-                          }}
-                        >
-                          {m.avatar_url && <img src={m.avatar_url} alt={m.login} className={styles.addReviewerAvatar} />}
-                          <div className={styles.addReviewerInfo}>
-                            <span>{m.name || m.login}</span>
-                            {resolved && (
-                              <span className={styles.addReviewerHint}>will use @{resolved}</span>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
+            <div className={styles.addReviewerDropdown} ref={addReviewerRef}>
+              <button
+                className={styles.addReviewerTrigger}
+                onClick={() => {
+                  const opening = !addReviewerOpen;
+                  setAddReviewerOpen(opening);
+                  if (opening) {
+                    setReviewerSearch('');
+                    setTimeout(() => reviewerSearchRef.current?.focus(), 0);
+                  }
+                }}
+                disabled={addReviewerMutation.isPending}
+              >
+                <span className={styles.addReviewerPlaceholder}>Add reviewer...</span>
+                <span className={styles.addReviewerChevron}>{addReviewerOpen ? '\u25B4' : '\u25BE'}</span>
+              </button>
+              {addReviewerOpen && (
+                <div className={styles.addReviewerMenu}>
+                  <div className={styles.addReviewerSearchWrap}>
+                    <input
+                      ref={reviewerSearchRef}
+                      className={styles.addReviewerSearchInput}
+                      placeholder="Search team members..."
+                      value={reviewerSearch}
+                      onChange={(e) => setReviewerSearch(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Escape') setAddReviewerOpen(false);
+                      }}
+                    />
                   </div>
-                )}
-              </div>
-            )}
+                  {repoReviewers.filter(matchesSearch).map((m: User) => {
+                    const resolved = resolveLogin(m);
+                    return (
+                      <div
+                        key={m.id}
+                        className={styles.addReviewerMenuItem}
+                        onClick={() => {
+                          addReviewerMutation.mutate(m.id);
+                          setAddReviewerOpen(false);
+                          setReviewerSearch('');
+                        }}
+                      >
+                        {m.avatar_url && <img src={m.avatar_url} alt={m.login} className={styles.addReviewerAvatar} />}
+                        <div className={styles.addReviewerInfo}>
+                          <span>{m.name || m.login}</span>
+                          {resolved && (
+                            <span className={styles.addReviewerHint}>will use @{resolved}</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {otherReviewers.filter(matchesSearch).length > 0 && (
+                    <>
+                      <div className={styles.addReviewerDivider}>
+                        <span>Other team members</span>
+                      </div>
+                      {otherReviewers.filter(matchesSearch).map((m: User) => {
+                        const resolved = resolveLogin(m);
+                        return (
+                          <div
+                            key={m.id}
+                            className={styles.addReviewerMenuItem}
+                            onClick={() => {
+                              addReviewerMutation.mutate(m.id);
+                              setAddReviewerOpen(false);
+                              setReviewerSearch('');
+                            }}
+                          >
+                            {m.avatar_url && <img src={m.avatar_url} alt={m.login} className={styles.addReviewerAvatar} />}
+                            <div className={styles.addReviewerInfo}>
+                              <span>{m.name || m.login}</span>
+                              {resolved && (
+                                <span className={styles.addReviewerHint}>will use @{resolved}</span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </>
+                  )}
+                  {notAlreadyRequested.filter(matchesSearch).length === 0 && (
+                    <div className={styles.addReviewerEmpty}>No matching team members</div>
+                  )}
+                </div>
+              )}
+            </div>
           </section>
 
           {/* Diff stats */}

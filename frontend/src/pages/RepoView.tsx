@@ -178,6 +178,20 @@ export function RepoView() {
   // Unique authors for filter dropdown
   const authors = [...new Set(pulls?.map((p: PRSummary) => p.author) || [])].sort();
 
+  // All people actively involved in this repo (authors + requested reviewers)
+  const repoPeopleMap = new Map<string, { login: string; avatar: string | null }>();
+  for (const p of pulls || []) {
+    if (!repoPeopleMap.has(p.author)) {
+      repoPeopleMap.set(p.author, { login: p.author, avatar: null });
+    }
+    for (const r of p.github_requested_reviewers || []) {
+      if (!repoPeopleMap.has(r.login)) {
+        repoPeopleMap.set(r.login, { login: r.login, avatar: r.avatar_url });
+      }
+    }
+  }
+  const reviewers = [...repoPeopleMap.values()].sort((a, b) => a.login.localeCompare(b.login));
+
   // Build GitHub login → { avatar, displayName } from team members + linked accounts.
   // This maps PR author logins (GitHub identities) to display info.
   const authorInfoMap = new Map<string, { avatar: string | null; displayName: string }>();
@@ -357,13 +371,15 @@ export function RepoView() {
               >
                 {icons.reviewer}
                 {(() => {
-                  const selected = activeTeam.find((m: User) => resolveUser(m).login === reviewerFilter);
-                  if (selected) {
-                    const r = resolveUser(selected);
+                  if (reviewerFilter) {
+                    const info = authorInfoMap.get(reviewerFilter);
+                    const prData = repoPeopleMap.get(reviewerFilter);
+                    const avatar = info?.avatar ?? prData?.avatar ?? null;
+                    const displayName = info?.displayName ?? reviewerFilter;
                     return (
                       <span className={styles.filterOption}>
-                        {r.avatar && <img src={r.avatar} alt={r.login} className={styles.filterAvatar} />}
-                        <span>{selected.name || r.login}</span>
+                        {avatar && <img src={avatar} alt={reviewerFilter} className={styles.filterAvatar} />}
+                        <span>{displayName}</span>
                       </span>
                     );
                   }
@@ -379,16 +395,18 @@ export function RepoView() {
                   >
                     <span>All reviewers</span>
                   </div>
-                  {activeTeam.map((m: User) => {
-                    const r = resolveUser(m);
+                  {reviewers.map((r) => {
+                    const info = authorInfoMap.get(r.login);
+                    const avatar = info?.avatar ?? r.avatar ?? null;
+                    const displayName = info?.displayName ?? r.login;
                     return (
                       <div
-                        key={m.id}
+                        key={r.login}
                         className={`${styles.filterMenuItem} ${reviewerFilter === r.login ? styles.filterMenuItemActive : ''}`}
                         onClick={() => { setReviewerFilter(r.login); setReviewerDropdownOpen(false); }}
                       >
-                        {r.avatar && <img src={r.avatar} alt={r.login} className={styles.filterAvatar} />}
-                        <span>{m.name || r.login}</span>
+                        {avatar && <img src={avatar} alt={r.login} className={styles.filterAvatar} />}
+                        <span>{displayName}</span>
                       </div>
                     );
                   })}
