@@ -19,6 +19,9 @@ async def discover_spaces_for_account(session: AsyncSession, account: GitHubAcco
         return []
 
     token = decrypt_token(account.encrypted_token)
+    if not token:
+        logger.warning(f"Cannot decrypt token for account {account.login}, skipping discovery")
+        return []
     gh = GitHubClient(token=token, base_url=account.base_url)
     spaces: list[Space] = []
 

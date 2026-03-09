@@ -1,12 +1,15 @@
-import { useState, useEffect, createContext, useContext } from 'react';
+import { useState, useEffect, useCallback, createContext, useContext } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, MutationCache } from '@tanstack/react-query';
 import { Shell } from './components/Shell';
 import { OrgOverview } from './pages/OrgOverview';
 import { PrioritizeView } from './pages/PrioritizeView';
 import { RepoView } from './pages/RepoView';
 import { Login } from './pages/Login';
 import type { GitHubUser } from './api/client';
+
+// Global toast state — shared via context
+let _showToast: (msg: string) => void = () => {};
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -15,6 +18,12 @@ const queryClient = new QueryClient({
       retry: 1,
     },
   },
+  mutationCache: new MutationCache({
+    onError: (error) => {
+      const message = error instanceof Error ? error.message : 'Something went wrong';
+      _showToast(message);
+    },
+  }),
 });
 
 interface UserContextValue {
@@ -67,6 +76,16 @@ export default function App() {
     return <Login onLogin={handleLogin} />;
   }
 
+  const [toast, setToast] = useState<string | null>(null);
+
+  const showToast = useCallback((msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 5000);
+  }, []);
+
+  // Wire up global toast function
+  useEffect(() => { _showToast = showToast; }, [showToast]);
+
   return (
     <UserContext.Provider value={{ user, setUser, oauthConfigured }}>
       <QueryClientProvider client={queryClient}>
@@ -80,6 +99,20 @@ export default function App() {
             </Route>
           </Routes>
         </BrowserRouter>
+        {toast && (
+          <div
+            style={{
+              position: 'fixed', bottom: 20, right: 20, zIndex: 9999,
+              background: 'var(--ci-fail, #d73a4a)', color: '#fff',
+              padding: '10px 16px', borderRadius: 8, fontSize: '0.9rem',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.3)', cursor: 'pointer',
+              maxWidth: 400,
+            }}
+            onClick={() => setToast(null)}
+          >
+            {toast}
+          </div>
+        )}
       </QueryClientProvider>
     </UserContext.Provider>
   );

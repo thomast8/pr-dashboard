@@ -151,7 +151,7 @@ async def rename_stack(
         raise HTTPException(status_code=404, detail="Stack not found")
 
     stack.name = body.name.strip()
-    await session.flush()
+    await session.commit()
 
     return StackOut(
         id=stack.id,

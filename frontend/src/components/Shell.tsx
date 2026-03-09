@@ -16,7 +16,7 @@ import styles from './Shell.module.css';
 export function Shell() {
   const location = useLocation();
   const qc = useQueryClient();
-  useSSE();
+  const { connected } = useSSE();
   const isHome = location.pathname === '/';
   const isPrioritize = location.pathname === '/prioritize';
   const [showTeam, setShowTeam] = useState(false);
@@ -71,6 +71,18 @@ export function Shell() {
     <div className={styles.shell}>
       <header className={styles.header}>
         <Link to="/" className={styles.logo}>PR Dashboard</Link>
+        {!connected && (
+          <span
+            style={{
+              fontSize: '0.75rem', color: 'var(--ci-fail, #d73a4a)',
+              background: 'rgba(215, 58, 74, 0.12)', padding: '2px 8px',
+              borderRadius: 4, marginLeft: 8,
+            }}
+            title="Live updates disconnected — data may be stale"
+          >
+            Disconnected
+          </span>
+        )}
         <nav className={styles.nav}>
           <Tooltip text="View all tracked repositories" position="bottom">
             <Link to="/" className={isHome ? styles.active : ''}>Repos</Link>

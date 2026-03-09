@@ -186,6 +186,10 @@ async def add_space_to_account(
         raise HTTPException(status_code=400, detail="Account has no token")
 
     token = decrypt_token(account.encrypted_token)
+    if not token:
+        raise HTTPException(
+            status_code=400, detail="Cannot decrypt account token — SECRET_KEY may have changed"
+        )
     gh = GitHubClient(token=token, base_url=account.base_url)
     try:
         if body.space_type == "org":

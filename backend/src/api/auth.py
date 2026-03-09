@@ -1,7 +1,9 @@
 """Authentication routes and middleware (HMAC-signed cookies + GitHub OAuth)."""
 
+import asyncio
 import hashlib
 import hmac
+import secrets
 import time
 
 import httpx
@@ -18,6 +20,18 @@ from src.models.tables import GitHubAccount, User
 from src.services.crypto import encrypt_token
 from src.services.discovery import discover_spaces_for_account
 from src.services.events import broadcast_event
+
+OAUTH_STATE_MAX_AGE = 600  # 10 minutes
+
+# Strong references to background tasks to prevent GC
+_background_tasks: set[asyncio.Task] = set()
+
+
+def _track_task(task: asyncio.Task) -> None:
+    """Add task to the set and register cleanup callback."""
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -177,8 +191,10 @@ async def github_oauth_start(request: Request, link: bool = False) -> RedirectRe
             status_code=400,
             content={"detail": "GitHub OAuth not configured"},
         )
-    # Encode link mode in the OAuth state so the callback knows
-    state_payload = "oauth_link" if link else "oauth"
+    # Encode link mode, timestamp, and nonce in the OAuth state
+    nonce = secrets.token_urlsafe(16)
+    mode = "oauth_link" if link else "oauth"
+    state_payload = f"{mode}:{int(time.time())}:{nonce}"
     params = {
         "client_id": settings.github_oauth_client_id,
         "scope": "repo read:org",
@@ -195,12 +211,23 @@ async def github_oauth_callback(code: str, state: str, request: Request) -> Redi
     """Exchange OAuth code for token, upsert user + account, auto-discover spaces."""
     base = settings.frontend_url or ""
 
-    # Verify state — supports both "oauth" (sign-in) and "oauth_link" (link account)
+    # Verify state — includes mode, timestamp, and nonce
     state_payload = _verify(state)
-    if state_payload not in ("oauth", "oauth_link"):
+    if not state_payload:
         return RedirectResponse(url=f"{base}/?error=invalid_state")
 
-    link_mode = state_payload == "oauth_link"
+    try:
+        mode, ts_str, _nonce = state_payload.split(":", 2)
+    except ValueError:
+        return RedirectResponse(url=f"{base}/?error=invalid_state")
+
+    if mode not in ("oauth", "oauth_link"):
+        return RedirectResponse(url=f"{base}/?error=invalid_state")
+
+    if time.time() - int(ts_str) > OAUTH_STATE_MAX_AGE:
+        return RedirectResponse(url=f"{base}/?error=state_expired")
+
+    link_mode = mode == "oauth_link"
 
     # Exchange code for access token
     async with httpx.AsyncClient() as client:
@@ -307,9 +334,7 @@ async def github_oauth_callback(code: str, state: str, request: Request) -> Redi
         account_id = account.id
 
     # Auto-discover spaces (orgs + personal) in background
-    import asyncio
-
-    asyncio.create_task(_discover_spaces_background(account_id))
+    _track_task(asyncio.create_task(_discover_spaces_background(account_id)))
 
     # Set identity cookie
     expires = int(time.time()) + settings.session_max_age_seconds
@@ -342,6 +367,10 @@ async def _discover_spaces_background(account_id: int) -> None:
                 await broadcast_event("spaces_discovered", {"account_id": account_id})
     except Exception:
         logger.exception(f"Failed to auto-discover spaces for account {account_id}")
+        await broadcast_event(
+            "discovery_error",
+            {"account_id": account_id, "error": f"Space discovery failed for account {account_id}"},
+        )
 
 
 @router.get("/user")

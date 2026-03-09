@@ -16,6 +16,16 @@ from src.models.tables import CheckRun, PRStack, PullRequest, RepoTracker, Space
 from src.services.crypto import decrypt_token
 from src.services.github_client import GitHubClient
 
+# Strong references to background tasks to prevent GC
+_background_tasks: set[asyncio.Task] = set()
+
+
+def _track_task(task: asyncio.Task) -> None:
+    """Add task to the set and register cleanup callback."""
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+
+
 router = APIRouter(prefix="/api/repos", tags=["repos"])
 
 
@@ -66,53 +76,83 @@ async def list_repos(
         for t in tracker_result.scalars().all():
             user_trackers[t.repo_id] = t
 
-    summaries: list[RepoSummary] = []
-    for repo in repos:
-        open_count = (
-            await session.execute(
-                select(func.count(PullRequest.id)).where(
-                    PullRequest.repo_id == repo.id,
-                    PullRequest.state == "open",
-                )
-            )
-        ).scalar_one()
+    # Batch-load all counts in a single query per metric
+    repo_ids = [r.id for r in repos]
 
+    if repo_ids:
+        stale_cutoff = datetime.now(UTC) - timedelta(days=7)
+
+        # Open PR counts
+        open_counts_rows = (
+            await session.execute(
+                select(PullRequest.repo_id, func.count(PullRequest.id))
+                .where(PullRequest.repo_id.in_(repo_ids), PullRequest.state == "open")
+                .group_by(PullRequest.repo_id)
+            )
+        ).all()
+        open_counts = dict(open_counts_rows)
+
+        # Failing CI counts (distinct PRs with at least one failing check)
         failing_subq = (
-            select(CheckRun.pull_request_id)
-            .join(PullRequest)
+            select(PullRequest.repo_id, CheckRun.pull_request_id)
+            .join(CheckRun, CheckRun.pull_request_id == PullRequest.id)
             .where(
-                PullRequest.repo_id == repo.id,
+                PullRequest.repo_id.in_(repo_ids),
                 PullRequest.state == "open",
                 CheckRun.conclusion == "failure",
             )
             .distinct()
+            .subquery()
         )
-        failing_count = (
-            await session.execute(select(func.count()).select_from(failing_subq.subquery()))
-        ).scalar_one()
-
-        stale_cutoff = datetime.now(UTC) - timedelta(days=7)
-        stale_count = (
+        failing_counts_rows = (
             await session.execute(
-                select(func.count(PullRequest.id)).where(
-                    PullRequest.repo_id == repo.id,
+                select(failing_subq.c.repo_id, func.count()).group_by(failing_subq.c.repo_id)
+            )
+        ).all()
+        failing_counts = dict(failing_counts_rows)
+
+        # Stale PR counts
+        stale_counts_rows = (
+            await session.execute(
+                select(PullRequest.repo_id, func.count(PullRequest.id))
+                .where(
+                    PullRequest.repo_id.in_(repo_ids),
                     PullRequest.state == "open",
                     PullRequest.updated_at < stale_cutoff,
                 )
+                .group_by(PullRequest.repo_id)
             )
-        ).scalar_one()
+        ).all()
+        stale_counts = dict(stale_counts_rows)
 
-        stack_count = (
-            await session.execute(select(func.count(PRStack.id)).where(PRStack.repo_id == repo.id))
-        ).scalar_one()
-
-        tracker_count = (
+        # Stack counts
+        stack_counts_rows = (
             await session.execute(
-                select(func.count(RepoTracker.id)).where(RepoTracker.repo_id == repo.id)
+                select(PRStack.repo_id, func.count(PRStack.id))
+                .where(PRStack.repo_id.in_(repo_ids))
+                .group_by(PRStack.repo_id)
             )
-        ).scalar_one()
+        ).all()
+        stack_counts = dict(stack_counts_rows)
 
-        # Use current user's tracker for user-specific fields, or fall back to first shared tracker
+        # Tracker counts
+        tracker_counts_rows = (
+            await session.execute(
+                select(RepoTracker.repo_id, func.count(RepoTracker.id))
+                .where(RepoTracker.repo_id.in_(repo_ids))
+                .group_by(RepoTracker.repo_id)
+            )
+        ).all()
+        tracker_counts = dict(tracker_counts_rows)
+    else:
+        open_counts = {}
+        failing_counts = {}
+        stale_counts = {}
+        stack_counts = {}
+        tracker_counts = {}
+
+    summaries: list[RepoSummary] = []
+    for repo in repos:
         tracker = user_trackers.get(repo.id)
         space_id_val = tracker.space_id if tracker else None
         space_name_val = tracker.space.name if tracker and tracker.space else None
@@ -128,15 +168,15 @@ async def list_repos(
                 is_active=repo.is_active,
                 default_branch=repo.default_branch,
                 last_synced_at=repo.last_synced_at,
-                open_pr_count=open_count,
-                failing_ci_count=failing_count,
-                stale_pr_count=stale_count,
-                stack_count=stack_count,
+                open_pr_count=open_counts.get(repo.id, 0),
+                failing_ci_count=failing_counts.get(repo.id, 0),
+                stale_pr_count=stale_counts.get(repo.id, 0),
+                stack_count=stack_counts.get(repo.id, 0),
                 space_id=space_id_val,
                 space_name=space_name_val,
                 visibility=visibility_val,
                 user_id=user_id_val,
-                tracker_count=tracker_count,
+                tracker_count=tracker_counts.get(repo.id, 0),
             )
         )
 
@@ -178,13 +218,33 @@ async def add_repo(
             acct = sp.github_account if sp else None
             if acct and acct.encrypted_token:
                 t = decrypt_token(acct.encrypted_token)
-                client = GitHubClient(token=t, base_url=acct.base_url)
+                if t:
+                    client = GitHubClient(token=t, base_url=acct.base_url)
+                else:
+                    logger.warning(
+                        f"Cannot decrypt token for {owner}/{name}, using unauthenticated client"
+                    )
+                    client = GitHubClient()
             else:
+                logger.warning(
+                    f"No token available for {owner}/{name}, using unauthenticated client"
+                )
                 client = GitHubClient()
         try:
             await svc.sync_repo(repo_id, owner, name, client)
         except Exception:
             logger.exception(f"Background sync failed for {owner}/{name}")
+            from src.services.events import broadcast_event
+
+            await broadcast_event(
+                "sync_error",
+                {
+                    "repo_id": repo_id,
+                    "owner": owner,
+                    "name": name,
+                    "error": f"Sync failed for {owner}/{name}",
+                },
+            )
         finally:
             await client.close()
 
@@ -216,8 +276,10 @@ async def add_repo(
             )
             session.add(tracker)
             await session.commit()
-            asyncio.create_task(
-                _background_sync(existing.id, existing.owner, existing.name, body.space_id)
+            _track_task(
+                asyncio.create_task(
+                    _background_sync(existing.id, existing.owner, existing.name, body.space_id)
+                )
             )
             return RepoDetail(
                 id=existing.id,
@@ -243,8 +305,10 @@ async def add_repo(
             )
             session.add(tracker)
             await session.commit()
-            asyncio.create_task(
-                _background_sync(existing.id, existing.owner, existing.name, body.space_id)
+            _track_task(
+                asyncio.create_task(
+                    _background_sync(existing.id, existing.owner, existing.name, body.space_id)
+                )
             )
             return RepoDetail(
                 id=existing.id,
@@ -262,12 +326,29 @@ async def add_repo(
 
     # Validate repo exists on GitHub using the space's account token
     account = space.github_account
-    token = decrypt_token(account.encrypted_token) if account and account.encrypted_token else ""
+    encrypted = account.encrypted_token if account else None
+    token = (decrypt_token(encrypted) if encrypted else None) or ""
     base_url = account.base_url if account else "https://api.github.com"
     gh = GitHubClient(token=token, base_url=base_url)
     try:
         gh_repo = await gh.get_repo(owner, body.name)
     except Exception as exc:
+        import httpx
+
+        if isinstance(exc, httpx.HTTPStatusError):
+            status = exc.response.status_code
+            if status == 401:
+                raise HTTPException(
+                    status_code=401, detail="GitHub token is invalid or expired"
+                ) from exc
+            if status == 403:
+                raise HTTPException(
+                    status_code=403, detail="GitHub token lacks permission"
+                ) from exc
+            if status == 429:
+                raise HTTPException(
+                    status_code=429, detail="GitHub API rate limit exceeded"
+                ) from exc
         raise HTTPException(status_code=404, detail=f"GitHub repo {full_name} not found") from exc
     finally:
         await gh.close()
@@ -291,7 +372,9 @@ async def add_repo(
     await session.refresh(repo)
     logger.info(f"Now tracking {full_name}")
 
-    asyncio.create_task(_background_sync(repo.id, repo.owner, repo.name, body.space_id))
+    _track_task(
+        asyncio.create_task(_background_sync(repo.id, repo.owner, repo.name, body.space_id))
+    )
 
     return RepoDetail(
         id=repo.id,
@@ -375,8 +458,9 @@ async def force_sync(
             account = tracker.space.github_account
             if account.encrypted_token:
                 token = decrypt_token(account.encrypted_token)
-                gh = GitHubClient(token=token, base_url=account.base_url)
-                break
+                if token:
+                    gh = GitHubClient(token=token, base_url=account.base_url)
+                    break
 
     if not gh:
         from src.config.settings import settings

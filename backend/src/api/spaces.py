@@ -100,11 +100,18 @@ async def toggle_space(
 
 
 @router.delete("/{space_id}", status_code=204)
-async def delete_space(space_id: int, session: AsyncSession = Depends(get_session)) -> None:
+async def delete_space(
+    space_id: int, request: Request, session: AsyncSession = Depends(get_session)
+) -> None:
     """Soft-delete a space."""
     space = await session.get(Space, space_id)
     if not space:
         raise HTTPException(status_code=404, detail="Space not found")
+
+    user_id = get_github_user_id(request)
+    if space.user_id != user_id:
+        raise HTTPException(status_code=403, detail="Only the space owner can delete this space")
+
     space.is_active = False
     await session.commit()
 

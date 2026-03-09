@@ -16,7 +16,9 @@ class Settings(BaseSettings):
 
     # GitHub
     github_token: str = Field(default="", description="GitHub PAT for API access")
-    github_org: str = Field(default="kyndryl-agentic-ai", description="Default GitHub org to track")
+    github_org: str = Field(
+        default="kyndryl-agentic-ai", description="Legacy: migration seeding only"
+    )
 
     # Database
     database_url: str = Field(

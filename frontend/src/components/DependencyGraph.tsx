@@ -1,12 +1,11 @@
 /** Dependency graph showing PRs as cards with SVG arrows.
  *
  * Layout: builds parent-child edges from head_ref/base_ref relationships,
- * then BFS from roots to assign positions. Chains wrap to new rows when
- * they'd exceed the container width (snake layout).
+ * then recursively assigns tree positions (depth = column, siblings stacked vertically).
  * Standalone PRs shown in a flexbox grid below.
  */
 
-import { useMemo, useRef, useState, useEffect, useCallback } from 'react';
+import { useMemo, useRef, useCallback } from 'react';
 import type { PRSummary, Stack } from '../api/client';
 import { StatusDot } from './StatusDot';
 import { Tooltip } from './Tooltip';
@@ -27,7 +26,6 @@ const CARD_H = 140;
 const GAP_X = 50;
 const GAP_Y = 30;
 const PAD = 20;
-const DEFAULT_MAX_COLS = 4;
 
 interface CardPos {
   x: number;
@@ -43,26 +41,6 @@ interface Arrow {
 
 export function DependencyGraph({ prs, stacks, highlightStackId, dimReviewerLogin, dimAuthor, selectedPrId, onSelectPr }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [containerWidth, setContainerWidth] = useState(0);
-
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-
-    const ro = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        setContainerWidth(entry.contentRect.width);
-      }
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-
-  const maxCols = useMemo(() => {
-    if (containerWidth <= 0) return DEFAULT_MAX_COLS;
-    return Math.max(2, Math.floor((containerWidth - PAD * 2) / (CARD_W + GAP_X)));
-  }, [containerWidth]);
-
   // Build highlighted PR set
   const highlightedPrIds = useMemo(() => {
     if (highlightStackId == null) return null;
@@ -209,7 +187,7 @@ export function DependencyGraph({ prs, stacks, highlightStackId, dimReviewerLogi
       svgW: maxX + PAD,
       svgH: maxY + PAD,
     };
-  }, [prs, highlightedPrIds, maxCols]);
+  }, [prs, highlightedPrIds]);
 
   const isDimmed = useCallback((pr: PRSummary) => {
     if (highlightedPrIds != null && !highlightedPrIds.has(pr.id)) return true;

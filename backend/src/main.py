@@ -7,7 +7,6 @@ from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
 from loguru import logger
 
 from src.api.accounts import router as accounts_router
@@ -100,14 +99,15 @@ if _frontend_dist is not None:
     @app.get("/{full_path:path}")
     async def spa_fallback(full_path: str) -> FileResponse:
         # If the requested file exists on disk (JS, CSS, images), serve it
-        asset = _frontend_dist / full_path
-        if full_path and asset.exists() and asset.is_file():
+        # Resolve to prevent path traversal (e.g. ../../.env)
+        asset = (_frontend_dist / full_path).resolve()
+        is_safe = asset.is_relative_to(_frontend_dist)
+        if full_path and is_safe and asset.exists() and asset.is_file():
             return FileResponse(asset)
         return FileResponse(_index_html)
 
-    # Also mount StaticFiles for efficient serving of actual assets
-    _assets_dir = str(_frontend_dist / "assets")
-    app.mount("/assets", StaticFiles(directory=_assets_dir), name="static-assets")
+    # Note: Static assets are served by the SPA catch-all above.
+    # No separate StaticFiles mount needed.
 
 
 if __name__ == "__main__":

@@ -62,7 +62,8 @@ async def _get_github_client_for_pr(
             account = tracker.space.github_account
             if account.encrypted_token:
                 token = decrypt_token(account.encrypted_token)
-                return GitHubClient(token=token, base_url=account.base_url), repo
+                if token:
+                    return GitHubClient(token=token, base_url=account.base_url), repo
 
     # Fallback to global token
     from src.config.settings import settings
@@ -109,7 +110,7 @@ def _compute_review_state(reviews: list[Review]) -> str:
 
 
 def _rebased_since_approval(pr: PullRequest) -> bool:
-    """Check if the PR was rebased after its most recent GitHub approval."""
+    """Check if HEAD changed (rebase or force-push) after the most recent GitHub approval."""
     if not pr.head_sha or not pr.reviews:
         return False
     latest: dict[str, Review] = {}

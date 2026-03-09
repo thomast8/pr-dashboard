@@ -61,7 +61,7 @@ class SyncService:
     async def _resolve_client_for_repo(
         self, session: AsyncSession, repo_id: int
     ) -> GitHubClient | None:
-        """Try each tracker's space token for a repo, return first working client."""
+        """Try each tracker's space token for a repo, return first available client."""
         trackers = (
             (
                 await session.execute(
@@ -79,7 +79,8 @@ class SyncService:
                 account = tracker.space.github_account
                 if account.encrypted_token and account.is_active:
                     token = decrypt_token(account.encrypted_token)
-                    return GitHubClient(token=token, base_url=account.base_url)
+                    if token:
+                        return GitHubClient(token=token, base_url=account.base_url)
 
         return None
 
@@ -122,7 +123,7 @@ class SyncService:
         name: str,
         github: GitHubClient | None = None,
     ) -> None:
-        """Sync all open PRs for a single repo."""
+        """Sync PRs for a single repo (open, stale, closed, and merged)."""
         logger.info(f"Syncing {owner}/{name}...")
         now = datetime.now(UTC)
 

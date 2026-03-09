@@ -186,19 +186,6 @@ class UserOut(BaseModel):
     linked_accounts: list[LinkedAccount] = []
 
 
-# ── Quality ──────────────────────────────────────────────────
-
-
-class QualitySnapshotOut(BaseModel):
-    id: int
-    pull_request_id: int
-    pytest_passed: int
-    pytest_failed: int
-    pytest_errors: int
-    mypy_errors: int
-    snapshot_at: datetime
-
-
 # ── Assignee ─────────────────────────────────────────────────
 
 
