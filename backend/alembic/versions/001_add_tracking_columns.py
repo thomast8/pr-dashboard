@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "001_add_tracking"
-down_revision = None
+down_revision = "000_initial"
 branch_labels = None
 depends_on = None
 
