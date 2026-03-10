@@ -12,13 +12,6 @@
   flex-direction: column;
 }
 
-.titleRow {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  margin-bottom: 1rem;
-}
-
 .repoTrigger {
   color: var(--accent-gold);
   font-weight: 600;
@@ -44,6 +37,7 @@
 /* Custom filter dropdown */
 .filterDropdown {
   position: relative;
+  width: fit-content;
 }
 
 .filterTrigger {
@@ -101,6 +95,26 @@
 .filterMenuItemActive {
   background: var(--bg-input);
   font-weight: 600;
+}
+
+.filterMenuGroupHeader {
+  padding: 0.45rem 0.6rem 0.2rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  pointer-events: none;
+}
+
+.filterMenuGroupHeader:not(:first-child) {
+  margin-top: 0.3rem;
+  border-top: 1px solid var(--border-default);
+  padding-top: 0.5rem;
+}
+
+.filterMenuItemIndented {
+  padding-left: 1rem;
 }
 
 .summaryBar {

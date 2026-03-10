@@ -127,37 +127,6 @@ export function PrioritizeView() {
   return (
     <div className={styles.container}>
       <div className={styles.content}>
-        <div className={styles.titleRow}>
-          <div className={styles.filterDropdown} ref={repoDropdownRef}>
-            <button
-              className={`${styles.filterTrigger} ${styles.repoTrigger}`}
-              onClick={() => setRepoDropdownOpen(!repoDropdownOpen)}
-            >
-              <span>{filterRepoId ? (repos || []).find((r: RepoSummary) => r.id === filterRepoId)?.full_name ?? 'All repos' : 'All repos'}</span>
-              <span className={styles.filterChevron}>{repoDropdownOpen ? '\u25B4' : '\u25BE'}</span>
-            </button>
-            {repoDropdownOpen && (
-              <div className={styles.filterMenu}>
-                <div
-                  className={`${styles.filterMenuItem} ${filterRepoId === undefined ? styles.filterMenuItemActive : ''}`}
-                  onClick={() => { setFilterRepoId(undefined); setRepoDropdownOpen(false); }}
-                >
-                  <span>All repos</span>
-                </div>
-                {(repos || []).map((r: RepoSummary) => (
-                  <div
-                    key={r.id}
-                    className={`${styles.filterMenuItem} ${filterRepoId === r.id ? styles.filterMenuItemActive : ''}`}
-                    onClick={() => { setFilterRepoId(r.id); setRepoDropdownOpen(false); }}
-                  >
-                    <span>{r.full_name}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
         <div className={styles.header}>
           <h2 className={styles.title}>Priority Queue</h2>
           <div className={styles.summaryBar}>
@@ -171,6 +140,45 @@ export function PrioritizeView() {
               <span className={styles.summaryCount}>{needsAttentionCount}</span> needs attention
             </span>
           </div>
+        </div>
+
+        <div className={styles.filterDropdown} ref={repoDropdownRef}>
+          <button
+            className={`${styles.filterTrigger} ${styles.repoTrigger}`}
+            onClick={() => setRepoDropdownOpen(!repoDropdownOpen)}
+          >
+            <span>{filterRepoId ? (repos || []).find((r: RepoSummary) => r.id === filterRepoId)?.full_name ?? 'All repos' : 'All repos'}</span>
+            <span className={styles.filterChevron}>{repoDropdownOpen ? '\u25B4' : '\u25BE'}</span>
+          </button>
+          {repoDropdownOpen && (
+            <div className={styles.filterMenu}>
+              <div
+                className={`${styles.filterMenuItem} ${filterRepoId === undefined ? styles.filterMenuItemActive : ''}`}
+                onClick={() => { setFilterRepoId(undefined); setRepoDropdownOpen(false); }}
+              >
+                <span>All repos</span>
+              </div>
+              {Object.entries(
+                (repos || []).reduce<Record<string, RepoSummary[]>>((groups, r) => {
+                  (groups[r.owner] ??= []).push(r);
+                  return groups;
+                }, {})
+              ).map(([ownerGroup, groupRepos]) => (
+                <div key={ownerGroup}>
+                  <div className={styles.filterMenuGroupHeader}>{ownerGroup}</div>
+                  {groupRepos.map((r) => (
+                    <div
+                      key={r.id}
+                      className={`${styles.filterMenuItem} ${styles.filterMenuItemIndented} ${filterRepoId === r.id ? styles.filterMenuItemActive : ''}`}
+                      onClick={() => { setFilterRepoId(r.id); setRepoDropdownOpen(false); }}
+                    >
+                      <span>{r.name}</span>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <ScoringGuide open={guideOpen} onToggle={() => setGuideOpen(!guideOpen)} />
