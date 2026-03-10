@@ -133,7 +133,10 @@ export function PRDetailPanel({ repoId, prNumber, onClose, showRepoLink = true }
         r.state === 'APPROVED' ? 'approved'
         : r.state === 'CHANGES_REQUESTED' ? 'changes_requested'
         : 'reviewed';
-      const stateLabel = r.state.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+      const stateLabel =
+        state === 'approved' ? 'Approved'
+        : state === 'changes_requested' ? 'Changes Requested'
+        : 'Reviewed';
       map.set(r.reviewer, { login: r.reviewer, state, stateLabel });
     }
 
@@ -264,13 +267,21 @@ export function PRDetailPanel({ repoId, prNumber, onClose, showRepoLink = true }
                     )}
                     <StatusDot status={r.state} size={7} />
                     <span className={styles.reviewer}>{nameMap.get(r.login) || r.login}</span>
-                    <span className={`${styles.reviewState} ${
-                      r.state === 'approved' ? styles.reviewApproved
-                      : r.state === 'changes_requested' ? styles.reviewChanges
-                      : r.state === 'reviewed' ? styles.reviewCommented
-                      : r.state === 'commented_only' ? styles.reviewCommentedOnly
-                      : styles.reviewerPending
-                    }`}>{r.stateLabel}</span>
+                    <Tooltip text={
+                      r.state === 'approved' ? 'Approved this pull request'
+                      : r.state === 'changes_requested' ? 'Requested changes to this pull request'
+                      : r.state === 'reviewed' ? 'Submitted a review with comments (no approval or change request)'
+                      : r.state === 'commented_only' ? 'Left comments on the PR without submitting a formal GitHub review'
+                      : 'Requested as reviewer but hasn\'t submitted a review yet'
+                    } position="left">
+                      <span className={`${styles.reviewState} ${
+                        r.state === 'approved' ? styles.reviewApproved
+                        : r.state === 'changes_requested' ? styles.reviewChanges
+                        : r.state === 'reviewed' ? styles.reviewCommented
+                        : r.state === 'commented_only' ? styles.reviewCommentedOnly
+                        : styles.reviewerPending
+                      }`}>{r.stateLabel}</span>
+                    </Tooltip>
                     <button
                       className={styles.removeReviewerBtn}
                       onClick={() => removeReviewerMutation.mutate(r.login)}
