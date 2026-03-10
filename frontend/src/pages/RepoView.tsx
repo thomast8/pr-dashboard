@@ -3,7 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useRef, useState, useEffect } from 'react';
-import { api, type PRSummary, type RepoSummary, type Space, type User } from '../api/client';
+import { api, type PRSummary, type RepoSummary, type User } from '../api/client';
 import { DependencyGraph } from '../components/DependencyGraph';
 import { PRDetailPanel } from '../components/PRDetailPanel';
 import { Tooltip } from '../components/Tooltip';
@@ -119,11 +119,6 @@ export function RepoView() {
     queryFn: api.listTeam,
   });
   const activeTeam = team?.filter((m: User) => m.is_active) || [];
-
-  const { data: spaces } = useQuery({
-    queryKey: ['spaces'],
-    queryFn: api.listSpaces,
-  });
 
   const renameMutation = useMutation({
     mutationFn: ({ stackId, name }: { stackId: number; name: string }) =>
