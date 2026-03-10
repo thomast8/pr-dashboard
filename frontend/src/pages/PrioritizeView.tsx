@@ -1,9 +1,11 @@
 /** Prioritize view — cross-repo ranked list of open PRs by priority score. */
 
 import { useQuery } from '@tanstack/react-query';
-import { Fragment, useEffect, useRef, useState } from 'react';
-import { api, type PrioritizedPR, type PriorityBreakdown, type RepoSummary } from '../api/client';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { api, type PrioritizedPR, type PriorityBreakdown, type RepoSummary, type User } from '../api/client';
+import { useCurrentUser } from '../App';
 import { PRDetailPanel } from '../components/PRDetailPanel';
+import { Tooltip } from '../components/Tooltip';
 import { useStore } from '../store/useStore';
 import styles from './PrioritizeView.module.css';
 
@@ -86,17 +88,42 @@ function ScoringGuide({ open, onToggle }: { open: boolean; onToggle: () => void 
 
 export function PrioritizeView() {
   const { selectedPrNumber, selectPr, selectedRepoId, setSelectedRepoId } = useStore();
+  const { user: currentUser } = useCurrentUser();
   const [hoveredId, setHoveredId] = useState<number | null>(null);
   const [filterRepoId, setFilterRepoId] = useState<number | undefined>(undefined);
   const [guideOpen, setGuideOpen] = useState(false);
-  const [repoDropdownOpen, setRepoDropdownOpen] = useState(false);
-  const repoDropdownRef = useRef<HTMLDivElement>(null);
 
+  // Filter state
+  const [reviewerFilter, setReviewerFilter] = useState('');
+
+  // Dropdown open/close state
+  const [repoDropdownOpen, setRepoDropdownOpen] = useState(false);
+  const [reviewerDropdownOpen, setReviewerDropdownOpen] = useState(false);
+
+  // Dropdown refs
+  const repoDropdownRef = useRef<HTMLDivElement>(null);
+  const reviewerDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Default reviewer to "Me" once currentUser loads
+  const defaultedReviewer = useRef(false);
+  useEffect(() => {
+    if (currentUser && !defaultedReviewer.current) {
+      defaultedReviewer.current = true;
+      setReviewerFilter('__me__');
+    }
+  }, [currentUser]);
+
+  const hasActiveFilters = reviewerFilter !== (currentUser ? '__me__' : '');
+
+  const clearAllFilters = () => {
+    setReviewerFilter(currentUser ? '__me__' : '');
+  };
+
+  // Click-outside handler for all dropdowns
   useEffect(() => {
     function handleClick(e: MouseEvent) {
-      if (repoDropdownRef.current && !repoDropdownRef.current.contains(e.target as Node)) {
-        setRepoDropdownOpen(false);
-      }
+      if (repoDropdownRef.current && !repoDropdownRef.current.contains(e.target as Node)) setRepoDropdownOpen(false);
+      if (reviewerDropdownRef.current && !reviewerDropdownRef.current.contains(e.target as Node)) setReviewerDropdownOpen(false);
     }
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
@@ -113,9 +140,73 @@ export function PrioritizeView() {
     refetchInterval: 30_000,
   });
 
+  const { data: team } = useQuery({
+    queryKey: ['team'],
+    queryFn: api.listTeam,
+  });
+  const activeTeam = team?.filter((m: User) => m.is_active) || [];
+
+  // Collect all GitHub logins belonging to the current user
+  const myLogins = useMemo(() => {
+    if (!currentUser) return new Set<string>();
+    const me = activeTeam.find((m: User) => m.id === currentUser.id);
+    const logins = new Set<string>();
+    if (me) {
+      logins.add(me.login);
+      for (const acct of me.linked_accounts || []) {
+        logins.add(acct.login);
+      }
+    } else {
+      logins.add(currentUser.login);
+    }
+    return logins;
+  }, [currentUser, activeTeam]);
+
+  // Build GitHub login → { avatar, displayName } from team members + linked accounts
+  const authorInfoMap = useMemo(() => {
+    const map = new Map<string, { avatar: string | null; displayName: string }>();
+    for (const m of activeTeam) {
+      const displayName = m.name || m.login;
+      for (const acct of m.linked_accounts || []) {
+        map.set(acct.login, { avatar: acct.avatar_url, displayName });
+      }
+      if (!map.has(m.login)) {
+        map.set(m.login, { avatar: m.avatar_url, displayName });
+      }
+    }
+    return map;
+  }, [activeTeam]);
+
+  const allPrs = items || [];
+
+  // Derive reviewer options from unfiltered data
+  const reviewerPeopleMap = useMemo(() => {
+    const map = new Map<string, { login: string; avatar: string | null }>();
+    for (const item of allPrs) {
+      for (const r of item.pr.github_requested_reviewers || []) {
+        if (!map.has(r.login)) {
+          map.set(r.login, { login: r.login, avatar: r.avatar_url });
+        }
+      }
+    }
+    return map;
+  }, [allPrs]);
+  const reviewers = [...reviewerPeopleMap.values()].sort((a, b) => a.login.localeCompare(b.login));
+
+  // Client-side filtering: reviewer only
+  let prs = allPrs;
+  if (reviewerFilter === '__me__') {
+    prs = prs.filter((item) =>
+      (item.pr.github_requested_reviewers || []).some((r) => myLogins.has(r.login)),
+    );
+  } else if (reviewerFilter) {
+    prs = prs.filter((item) =>
+      (item.pr.github_requested_reviewers || []).some((r) => r.login === reviewerFilter),
+    );
+  }
+
   if (isLoading) return <div className={styles.loading}>Loading prioritized PRs...</div>;
 
-  const prs = items || [];
   const readyCount = prs.filter((p) => p.priority_score >= 70 && !p.blocked_by_pr_id).length;
   const needsAttentionCount = prs.filter((p) => p.priority_score < 40).length;
 
@@ -123,6 +214,9 @@ export function PrioritizeView() {
     setSelectedRepoId(item.repo_id);
     selectPr(item.pr.number);
   }
+
+  // Reviewer filter icon
+  const reviewerIcon = <svg className={styles.filterIcon} viewBox="0 0 16 16" fill="currentColor"><path d="M8 3C4.5 3 1.7 5.1.5 8c1.2 2.9 4 5 7.5 5s6.3-2.1 7.5-5c-1.2-2.9-4-5-7.5-5zm0 8a3 3 0 110-6 3 3 0 010 6zm0-5a2 2 0 100 4 2 2 0 000-4z"/></svg>;
 
   return (
     <div className={styles.container}>
@@ -142,42 +236,125 @@ export function PrioritizeView() {
           </div>
         </div>
 
-        <div className={styles.filterDropdown} ref={repoDropdownRef}>
-          <button
-            className={`${styles.filterTrigger} ${styles.repoTrigger}`}
-            onClick={() => setRepoDropdownOpen(!repoDropdownOpen)}
-          >
-            <span>{filterRepoId ? (repos || []).find((r: RepoSummary) => r.id === filterRepoId)?.full_name ?? 'All repos' : 'All repos'}</span>
-            <span className={styles.filterChevron}>{repoDropdownOpen ? '\u25B4' : '\u25BE'}</span>
-          </button>
-          {repoDropdownOpen && (
-            <div className={styles.filterMenu}>
-              <div
-                className={`${styles.filterMenuItem} ${filterRepoId === undefined ? styles.filterMenuItemActive : ''}`}
-                onClick={() => { setFilterRepoId(undefined); setRepoDropdownOpen(false); }}
+        <div className={styles.filters}>
+          {/* 1. Repo */}
+          <Tooltip text="Filter by repository" position="bottom" disabled={repoDropdownOpen}>
+            <div className={styles.filterDropdown} ref={repoDropdownRef}>
+              <button
+                className={`${styles.filterTrigger} ${styles.repoTrigger}`}
+                onClick={() => setRepoDropdownOpen(!repoDropdownOpen)}
               >
-                <span>All repos</span>
-              </div>
-              {Object.entries(
-                (repos || []).reduce<Record<string, RepoSummary[]>>((groups, r) => {
-                  (groups[r.owner] ??= []).push(r);
-                  return groups;
-                }, {})
-              ).map(([ownerGroup, groupRepos]) => (
-                <div key={ownerGroup}>
-                  <div className={styles.filterMenuGroupHeader}>{ownerGroup}</div>
-                  {groupRepos.map((r) => (
-                    <div
-                      key={r.id}
-                      className={`${styles.filterMenuItem} ${styles.filterMenuItemIndented} ${filterRepoId === r.id ? styles.filterMenuItemActive : ''}`}
-                      onClick={() => { setFilterRepoId(r.id); setRepoDropdownOpen(false); }}
-                    >
-                      <span>{r.name}</span>
+                <span>{filterRepoId ? (repos || []).find((r: RepoSummary) => r.id === filterRepoId)?.full_name ?? 'All repos' : 'All repos'}</span>
+                <span className={styles.filterChevron}>{repoDropdownOpen ? '\u25B4' : '\u25BE'}</span>
+              </button>
+              {repoDropdownOpen && (
+                <div className={styles.filterMenu}>
+                  <div
+                    className={`${styles.filterMenuItem} ${filterRepoId === undefined ? styles.filterMenuItemActive : ''}`}
+                    onClick={() => { setFilterRepoId(undefined); setRepoDropdownOpen(false); }}
+                  >
+                    <span>All repos</span>
+                  </div>
+                  {Object.entries(
+                    (repos || []).reduce<Record<string, RepoSummary[]>>((groups, r) => {
+                      (groups[r.owner] ??= []).push(r);
+                      return groups;
+                    }, {})
+                  ).map(([ownerGroup, groupRepos]) => (
+                    <div key={ownerGroup}>
+                      <div className={styles.filterMenuGroupHeader}>{ownerGroup}</div>
+                      {groupRepos.map((r) => (
+                        <div
+                          key={r.id}
+                          className={`${styles.filterMenuItem} ${styles.filterMenuItemIndented} ${filterRepoId === r.id ? styles.filterMenuItemActive : ''}`}
+                          onClick={() => { setFilterRepoId(r.id); setRepoDropdownOpen(false); }}
+                        >
+                          <span>{r.name}</span>
+                        </div>
+                      ))}
                     </div>
                   ))}
                 </div>
-              ))}
+              )}
             </div>
+          </Tooltip>
+
+          {/* 2. Reviewer */}
+          <Tooltip text="Filter PRs by requested reviewer" position="bottom" disabled={reviewerDropdownOpen}>
+            <div className={styles.filterDropdown} ref={reviewerDropdownRef}>
+              <button
+                className={styles.filterTrigger}
+                onClick={() => setReviewerDropdownOpen(!reviewerDropdownOpen)}
+              >
+                {reviewerIcon}
+                {(() => {
+                  if (reviewerFilter === '__me__') {
+                    return (
+                      <span className={styles.filterOption}>
+                        {currentUser?.avatar_url && <img src={currentUser.avatar_url} alt="Me" className={styles.filterAvatar} />}
+                        <span>Me</span>
+                      </span>
+                    );
+                  }
+                  if (reviewerFilter) {
+                    const info = authorInfoMap.get(reviewerFilter);
+                    const prData = reviewerPeopleMap.get(reviewerFilter);
+                    const avatar = info?.avatar ?? prData?.avatar ?? null;
+                    const displayName = info?.displayName ?? reviewerFilter;
+                    return (
+                      <span className={styles.filterOption}>
+                        {avatar && <img src={avatar} alt={reviewerFilter} className={styles.filterAvatar} />}
+                        <span>{displayName}</span>
+                      </span>
+                    );
+                  }
+                  return <span>All reviewers</span>;
+                })()}
+                <span className={styles.filterChevron}>{reviewerDropdownOpen ? '\u25B4' : '\u25BE'}</span>
+              </button>
+              {reviewerDropdownOpen && (
+                <div className={styles.filterMenu}>
+                  <div
+                    className={`${styles.filterMenuItem} ${!reviewerFilter ? styles.filterMenuItemActive : ''}`}
+                    onClick={() => { setReviewerFilter(''); setReviewerDropdownOpen(false); }}
+                  >
+                    <span>All reviewers</span>
+                  </div>
+                  {currentUser && (
+                    <div
+                      className={`${styles.filterMenuItem} ${reviewerFilter === '__me__' ? styles.filterMenuItemActive : ''}`}
+                      onClick={() => { setReviewerFilter('__me__'); setReviewerDropdownOpen(false); }}
+                    >
+                      {currentUser.avatar_url && <img src={currentUser.avatar_url} alt="Me" className={styles.filterAvatar} />}
+                      <span>Me</span>
+                    </div>
+                  )}
+                  {reviewers.map((r) => {
+                    const info = authorInfoMap.get(r.login);
+                    const avatar = info?.avatar ?? r.avatar ?? null;
+                    const displayName = info?.displayName ?? r.login;
+                    return (
+                      <div
+                        key={r.login}
+                        className={`${styles.filterMenuItem} ${reviewerFilter === r.login ? styles.filterMenuItemActive : ''}`}
+                        onClick={() => { setReviewerFilter(r.login); setReviewerDropdownOpen(false); }}
+                      >
+                        {avatar && <img src={avatar} alt={r.login} className={styles.filterAvatar} />}
+                        <span>{displayName}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </Tooltip>
+
+          {/* Clear filters */}
+          {hasActiveFilters && (
+            <button className={styles.clearFilters} onClick={clearAllFilters} title="Reset all filters">
+              <svg className={styles.filterIcon} viewBox="0 0 16 16" fill="currentColor"><path d="M4.646 4.646a.5.5 0 01.708 0L8 7.293l2.646-2.647a.5.5 0 01.708.708L8.707 8l2.647 2.646a.5.5 0 01-.708.708L8 8.707l-2.646 2.647a.5.5 0 01-.708-.708L7.293 8 4.646 5.354a.5.5 0 010-.708z"/></svg>
+              Reset
+            </button>
           )}
         </div>
 

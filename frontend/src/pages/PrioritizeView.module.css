@@ -117,6 +117,54 @@
   padding-left: 1rem;
 }
 
+/* Filter bar */
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  align-items: center;
+}
+
+.filterIcon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+
+.filterOption {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.filterAvatar {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.clearFilters {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: none;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.clearFilters:hover {
+  color: var(--text-primary);
+  border-color: var(--accent-blue);
+}
+
 .summaryBar {
   display: flex;
   gap: 1rem;
