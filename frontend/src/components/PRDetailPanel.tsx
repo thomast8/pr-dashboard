@@ -140,6 +140,13 @@ export function PRDetailPanel({ repoId, prNumber, onClose }: Props) {
       }
     }
 
+    // Third pass: commenters without a formal review
+    for (const login of pr.commenters_without_review || []) {
+      if (!map.has(login)) {
+        map.set(login, { login, state: 'commented_only', stateLabel: '\u26A0 Commented (no review)' });
+      }
+    }
+
     return Array.from(map.values());
   }, [pr]);
 
@@ -234,6 +241,7 @@ export function PRDetailPanel({ repoId, prNumber, onClose }: Props) {
                       r.state === 'approved' ? styles.reviewApproved
                       : r.state === 'changes_requested' ? styles.reviewChanges
                       : r.state === 'reviewed' ? styles.reviewCommented
+                      : r.state === 'commented_only' ? styles.reviewCommentedOnly
                       : styles.reviewerPending
                     }`}>{r.stateLabel}</span>
                     <button

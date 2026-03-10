@@ -134,6 +134,7 @@ class PRSummary(BaseModel):
     rebased_since_approval: bool = False
     merged_at: datetime | None = None
     manual_priority: str | None = None
+    commenters_without_review: list[str] = []
 
 
 class PRDetail(PRSummary):

@@ -19,6 +19,7 @@ const STATUS_COLORS: Record<string, string> = {
   changes_requested: 'var(--review-changes)',
   mixed: 'var(--review-mixed)',
   reviewed: 'var(--review-commented)',
+  commented_only: 'var(--accent-amber)',
   unknown: 'var(--ci-neutral)',
   none: 'var(--ci-neutral)',
 };

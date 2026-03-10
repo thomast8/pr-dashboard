@@ -94,6 +94,7 @@ export interface PRSummary {
   rebased_since_approval: boolean;
   merged_at: string | null;
   manual_priority: string | null;
+  commenters_without_review: string[];
 }
 
 export interface CheckRun {

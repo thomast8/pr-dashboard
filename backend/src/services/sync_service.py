@@ -153,11 +153,19 @@ class SyncService:
                 for gh_pr in all_pulls:
                     pr = await self._upsert_pr(session, repo_id, gh_pr, gh_client=github)
 
-                    # Fetch detail, workflow runs, and reviews in parallel
-                    detail_result, runs_result, reviews_result = await asyncio.gather(
+                    # Fetch detail, workflow runs, reviews, and comments in parallel
+                    (
+                        detail_result,
+                        runs_result,
+                        reviews_result,
+                        issue_comments_result,
+                        review_comments_result,
+                    ) = await asyncio.gather(
                         github.get_pull(owner, name, gh_pr["number"]),
                         github.get_workflow_runs(owner, name, gh_pr["head"]["sha"]),
                         github.get_reviews(owner, name, gh_pr["number"]),
+                        github.get_issue_comments(owner, name, gh_pr["number"]),
+                        github.get_review_comments(owner, name, gh_pr["number"]),
                         return_exceptions=True,
                     )
 
@@ -194,6 +202,22 @@ class SyncService:
                         )
                     else:
                         await self._upsert_reviews(session, pr.id, reviews_result, gh_client=github)
+
+                    # Extract unique commenters (excluding PR author)
+                    commenter_logins: set[str] = set()
+                    pr_author = gh_pr["user"]["login"]
+                    for comments_result in (issue_comments_result, review_comments_result):
+                        if isinstance(comments_result, Exception):
+                            logger.warning(
+                                f"  Could not fetch comments for PR #{gh_pr['number']}: "
+                                f"{comments_result}"
+                            )
+                            continue
+                        for comment in comments_result:
+                            login = comment.get("user", {}).get("login")
+                            if login and login != pr_author:
+                                commenter_logins.add(login)
+                    pr.commenters = sorted(commenter_logins)
 
                 # Detect stale PRs: open in DB but not returned by GitHub
                 db_open_prs = (

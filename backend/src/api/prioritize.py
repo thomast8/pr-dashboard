@@ -9,6 +9,7 @@ from sqlalchemy.orm import joinedload, selectinload
 
 from src.api.auth import get_github_user_id
 from src.api.pulls import (
+    _commenters_without_review,
     _compute_ci_status,
     _compute_review_state,
     _pr_to_summary,
@@ -175,6 +176,7 @@ def compute_owner_score(
     mergeable_state: str | None,
     created_at: datetime,
     draft: bool,
+    has_commenters_without_review: bool = False,
 ) -> tuple[int, PriorityBreakdown]:
     """Scoring for owner mode (max 100): "What needs my attention on my PRs?"."""
     # Changes requested (max 30) — someone sent it back
@@ -203,6 +205,9 @@ def compute_owner_score(
     # Has new feedback (max 5) — reviewed/commented but not approved/changes_requested
     feedback_pts = 5 if review_state == "reviewed" else 0
 
+    # Unsubmitted comments (bonus 5) — someone commented without a formal review
+    uncommented_pts = 5 if has_commenters_without_review else 0
+
     # Age (max 10) — linear over 7 days
     age_pts = _compute_age_pts(created_at, 10)
 
@@ -210,7 +215,15 @@ def compute_owner_score(
     draft_penalty = -20 if draft else 0
 
     total = max(
-        0, review_pts + ci_pts + mergeable_pts + ready_pts + feedback_pts + age_pts + draft_penalty
+        0,
+        review_pts
+        + ci_pts
+        + mergeable_pts
+        + ready_pts
+        + feedback_pts
+        + age_pts
+        + uncommented_pts
+        + draft_penalty,
     )
 
     # Reuse PriorityBreakdown fields with owner semantics:
@@ -505,6 +518,7 @@ async def list_prioritized(
                 mergeable_state=pr.mergeable_state,
                 created_at=pr.created_at,
                 draft=pr.draft,
+                has_commenters_without_review=len(_commenters_without_review(pr)) > 0,
             )
         else:
             rebased = _rebased_since_approval(pr)

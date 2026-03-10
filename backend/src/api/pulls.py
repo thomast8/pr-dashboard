@@ -127,6 +127,18 @@ def _rebased_since_approval(pr: PullRequest) -> bool:
     return newest_approval.commit_id is not None and newest_approval.commit_id != pr.head_sha
 
 
+def _commenters_without_review(pr: PullRequest) -> list[str]:
+    """Return commenters who haven't submitted a formal review or been requested as reviewers."""
+    commenters = set(pr.commenters or [])
+    if not commenters:
+        return []
+    # Formal reviewers (anyone who submitted a review)
+    formal_reviewers = {r.reviewer for r in (pr.reviews or [])}
+    # Requested reviewers
+    requested = {r.get("login") for r in (pr.github_requested_reviewers or []) if r.get("login")}
+    return sorted(commenters - formal_reviewers - requested)
+
+
 def _pr_to_summary(pr: PullRequest, stack_id: int | None = None) -> PRSummary:
     return PRSummary(
         id=pr.id,
@@ -153,6 +165,7 @@ def _pr_to_summary(pr: PullRequest, stack_id: int | None = None) -> PRSummary:
         rebased_since_approval=_rebased_since_approval(pr),
         merged_at=pr.merged_at,
         manual_priority=pr.manual_priority,
+        commenters_without_review=_commenters_without_review(pr),
     )
 
 
@@ -262,6 +275,7 @@ async def get_pull(
         github_requested_reviewers=pr.github_requested_reviewers or [],
         rebased_since_approval=_rebased_since_approval(pr),
         manual_priority=pr.manual_priority,
+        commenters_without_review=_commenters_without_review(pr),
         check_runs=[
             CheckRunOut(
                 id=c.id,

@@ -207,6 +207,7 @@
 
 .summaryGreen { color: var(--accent-green); }
 .summaryRed { color: var(--accent-red); }
+.summaryAmber { color: var(--accent-amber); }
 
 .summaryCount {
   font-weight: 700;

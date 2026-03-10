@@ -120,6 +120,7 @@
 .reviewApproved { color: var(--review-approved); }
 .reviewChanges { color: var(--review-changes); }
 .reviewCommented { color: var(--review-commented); }
+.reviewCommentedOnly { color: var(--accent-amber); }
 .reviewerPending { color: var(--ci-pending); }
 
 .rebaseWarning {

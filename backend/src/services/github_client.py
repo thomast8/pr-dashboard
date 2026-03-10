@@ -147,6 +147,14 @@ class GitHubClient:
         """Get reviews for a PR."""
         return await self._get_paginated(f"/repos/{owner}/{repo}/pulls/{number}/reviews")
 
+    async def get_issue_comments(self, owner: str, repo: str, number: int) -> list[dict[str, Any]]:
+        """Get conversation comments on an issue/PR."""
+        return await self._get_paginated(f"/repos/{owner}/{repo}/issues/{number}/comments")
+
+    async def get_review_comments(self, owner: str, repo: str, number: int) -> list[dict[str, Any]]:
+        """Get inline review comments on a PR."""
+        return await self._get_paginated(f"/repos/{owner}/{repo}/pulls/{number}/comments")
+
     async def list_user_orgs(self) -> list[dict[str, Any]]:
         """List orgs the authenticated user belongs to."""
         return await self._get_paginated("/user/orgs")

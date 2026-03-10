@@ -307,6 +307,7 @@ export function PrioritizeView() {
     if (activeMode === 'owner') {
       const readyToMerge = prs.filter((p) => p.priority_breakdown.size === 15).length;
       const needAction = prs.filter((p) => p.priority_breakdown.review === 30 || p.priority_breakdown.ci >= 20 || p.priority_breakdown.mergeable === 15).length;
+      const unsubmittedComments = prs.filter((p) => p.pr.commenters_without_review?.length > 0).length;
       return (
         <div className={styles.summaryBar}>
           <Tooltip text="Your open PRs across tracked repos" position="bottom">
@@ -323,6 +324,13 @@ export function PrioritizeView() {
             <Tooltip text="Changes requested, CI broken, or has merge conflicts" position="bottom">
               <span className={`${styles.summaryItem} ${styles.summaryRed}`}>
                 <span className={styles.summaryCount}>{needAction}</span> need action
+              </span>
+            </Tooltip>
+          )}
+          {unsubmittedComments > 0 && (
+            <Tooltip text="PRs where someone commented but didn't submit a formal review" position="bottom">
+              <span className={`${styles.summaryItem} ${styles.summaryAmber}`}>
+                <span className={styles.summaryCount}>{'\u26A0'} {unsubmittedComments}</span> unsubmitted reviews
               </span>
             </Tooltip>
           )}
@@ -482,6 +490,16 @@ export function PrioritizeView() {
                     {item.pr.manual_priority === 'low' && <span className={`${styles.badge} ${styles.badgeDim}`}>{'\u2193'} Low</span>}
                     {item.stack_name && (
                       <span className={`${styles.badge} ${styles.badgeStack}`}>{item.stack_name}</span>
+                    )}
+                    {activeMode === 'review' && currentUser && item.pr.commenters_without_review?.includes(currentUser.login) && (
+                      <Tooltip text="You commented on this PR but didn't submit a formal review" position="bottom">
+                        <span className={`${styles.badge} ${styles.badgeAmber}`}>{'\u26A0'} Unsubmitted review</span>
+                      </Tooltip>
+                    )}
+                    {activeMode === 'owner' && item.pr.commenters_without_review?.length > 0 && (
+                      <Tooltip text={`${item.pr.commenters_without_review.join(', ')} commented but didn't submit a formal review`} position="bottom">
+                        <span className={`${styles.badge} ${styles.badgeAmber}`}>{'\u26A0'} Unsubmitted review</span>
+                      </Tooltip>
                     )}
                     {item.blocked_by_pr_id && (() => {
                       const blocker = prById.get(item.blocked_by_pr_id);

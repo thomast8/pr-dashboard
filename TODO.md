@@ -1,6 +1,7 @@
 # PR Dashboard — TODO
 
 ## Completed
+- [x] Flag "Commented but No Formal Review": detect commenters who left comments (conversation or inline) without submitting a formal GitHub review, surface as amber "Commented (no review)" badge in PRDetailPanel reviewer list and "Unsubmitted review" badge in Priority Queue, +5 owner score bonus, summary stat in owner mode (2026-03-10)
 - [x] Priority queue Review/Owner modes: segmented toggle splits priority queue into "Review Queue" (PRs where I'm a requested reviewer, scored by ball-in-my-court logic) and "My PRs" (PRs I authored, scored by action-required signals like failing CI, changes requested, conflicts). Mode-aware tooltips, badges, scoring guide, and summary stats. Unauthenticated users fall back to legacy scoring. Backend filtering by reviewer/author moved server-side. (2026-03-10)
 - [x] PR prioritization: cross-repo priority queue ranking all open PRs by computed score (review readiness, CI, size, mergeability, age, rebase, draft penalty), stack-aware merge/review order respecting parent-child dependencies, score breakdown tooltip, new `/prioritize` page with summary bar and ranked list (2026-03-09)
 - [x] Custom filter dropdowns + PR state filter + merged PR support: author filter converted to custom avatar dropdown matching reviewer style, new combined state filter (all open, needs review, reviewed, approved, changes requested, draft, recently merged), backend supports returning merged PRs via include_merged_days param, merged PR cards shown with purple border and badge (2026-03-09)
@@ -33,6 +34,7 @@
 - [ ] Error trend chart (stacked bar) for stack view
 
 ## Planned
+- [ ] Notification system for review nudges (email/Slack when someone comments without formal review)
 - [ ] Login page UI (currently only API)
 - [ ] SSE client-side integration (EventSource in react-query)
 - [ ] Quality snapshots collection during sync (parse CI output)
