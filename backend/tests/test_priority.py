@@ -509,8 +509,8 @@ class TestComputePriorityScore:
         assert score == 100
         assert breakdown.review == 35
         assert breakdown.ci == 25
-        assert breakdown.size == 15
-        assert breakdown.mergeable == 10
+        assert breakdown.size == 10
+        assert breakdown.mergeable == 15
         assert breakdown.age == 10
         assert breakdown.rebase == 5
 
@@ -526,7 +526,7 @@ class TestComputePriorityScore:
             draft=True,
         )
         assert breakdown.draft_penalty == -30
-        assert score == 0  # 10 + 5 + 15 + 0 + 0 + 0 - 30 = 0
+        assert score == 0  # 15 + 5 + 10 + 0 + 0 + 0 - 30 = 0
 
     def test_large_pr_low_size_score(self):
         """Very large PRs get 0 size points."""

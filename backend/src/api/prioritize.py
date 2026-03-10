@@ -32,27 +32,27 @@ def compute_priority_score(
 ) -> tuple[int, PriorityBreakdown]:
     """Pure function: compute priority score (0–100) from PR signals."""
     # Review readiness (max 35)
-    review_scores = {"approved": 35, "reviewed": 20, "none": 10, "changes_requested": 0}
-    review_pts = review_scores.get(review_state, 10)
+    review_scores = {"approved": 35, "reviewed": 15, "none": 15, "changes_requested": 0}
+    review_pts = review_scores.get(review_state, 15)
 
     # CI status (max 25)
     ci_scores = {"success": 25, "pending": 10, "unknown": 5, "failure": 0}
     ci_pts = ci_scores.get(ci_status, 5)
 
-    # Size — inverse, smaller = higher (max 15)
+    # Size — inverse, smaller = higher (max 10)
     if total_lines <= 50:
-        size_pts = 15
+        size_pts = 10
     elif total_lines <= 200:
-        size_pts = 12
-    elif total_lines <= 500:
         size_pts = 8
+    elif total_lines <= 500:
+        size_pts = 5
     elif total_lines <= 1000:
-        size_pts = 4
+        size_pts = 2
     else:
         size_pts = 0
 
-    # Mergeable state (max 10)
-    merge_scores = {"clean": 10, "unstable": 5}
+    # Mergeable state (max 15)
+    merge_scores = {"clean": 15, "unstable": 8}
     mergeable_pts = merge_scores.get(mergeable_state or "", 0)
 
     # Age — older PRs get higher priority, linear 0→10 over 7 days (max 10)

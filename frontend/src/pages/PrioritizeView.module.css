@@ -353,6 +353,7 @@
 .badgeDim { background: rgba(108, 117, 125, 0.15); color: var(--text-dim); }
 .badgeStack { background: rgba(97, 218, 251, 0.1); color: var(--accent-blue); }
 
+
 /* Score bar */
 .scoreArea {
   position: relative;

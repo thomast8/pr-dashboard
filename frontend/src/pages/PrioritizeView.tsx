@@ -15,27 +15,6 @@ function scoreColor(score: number): string {
   return 'var(--accent-red)';
 }
 
-function reviewBadge(state: string) {
-  const map: Record<string, { label: string; cls: string }> = {
-    approved: { label: 'Approved', cls: styles.badgeGreen },
-    changes_requested: { label: 'Changes', cls: styles.badgeRed },
-    reviewed: { label: 'Reviewed', cls: styles.badgePurple },
-    none: { label: 'No review', cls: styles.badgeDim },
-  };
-  const info = map[state] || map.none;
-  return <span className={`${styles.badge} ${info.cls}`}>{info.label}</span>;
-}
-
-function ciBadge(status: string) {
-  const map: Record<string, { label: string; cls: string }> = {
-    success: { label: 'CI pass', cls: styles.badgeGreen },
-    failure: { label: 'CI fail', cls: styles.badgeRed },
-    pending: { label: 'CI pending', cls: styles.badgeAmber },
-    unknown: { label: 'CI unknown', cls: styles.badgeDim },
-  };
-  const info = map[status] || map.unknown;
-  return <span className={`${styles.badge} ${info.cls}`}>{info.label}</span>;
-}
 
 function BreakdownTooltip({ breakdown, score }: { breakdown: PriorityBreakdown; score: number }) {
   return (
@@ -43,8 +22,8 @@ function BreakdownTooltip({ breakdown, score }: { breakdown: PriorityBreakdown; 
       <div className={styles.breakdownTitle}>Score breakdown ({score}/100)</div>
       <div className={styles.breakdownRow}><span>Review readiness</span><span>{breakdown.review}/35</span></div>
       <div className={styles.breakdownRow}><span>CI status</span><span>{breakdown.ci}/25</span></div>
-      <div className={styles.breakdownRow}><span>Size (inverse)</span><span>{breakdown.size}/15</span></div>
-      <div className={styles.breakdownRow}><span>Mergeable</span><span>{breakdown.mergeable}/10</span></div>
+      <div className={styles.breakdownRow}><span>Mergeable</span><span>{breakdown.mergeable}/15</span></div>
+      <div className={styles.breakdownRow}><span>Size (inverse)</span><span>{breakdown.size}/10</span></div>
       <div className={styles.breakdownRow}><span>Age</span><span>{breakdown.age}/10</span></div>
       <div className={styles.breakdownRow}><span>Rebase check</span><span>{breakdown.rebase}/5</span></div>
       {breakdown.draft_penalty < 0 && (
@@ -54,6 +33,46 @@ function BreakdownTooltip({ breakdown, score }: { breakdown: PriorityBreakdown; 
       )}
     </div>
   );
+}
+
+type ScoreImpact = 'positive' | 'negative' | 'neutral';
+type ScoredPhrase = { text: string; tip: string; impact: ScoreImpact; priority: number };
+
+function scoreSummary(b: PriorityBreakdown, reviewState: string): ScoredPhrase[] {
+  const phrases: ScoredPhrase[] = [];
+
+  // Review (max 35)
+  if (b.review === 35) phrases.push({ text: 'Approved', tip: 'Review approved, ready to merge', impact: 'positive', priority: 6 });
+  else if (reviewState === 'reviewed') phrases.push({ text: 'Reviewed', tip: 'Has review comments but not yet approved', impact: 'neutral', priority: 4 });
+  else if (reviewState === 'none') phrases.push({ text: 'Awaiting review', tip: 'No reviews yet, needs someone to look at it', impact: 'negative', priority: 6 });
+  else if (b.review === 0) phrases.push({ text: 'Changes requested', tip: 'Reviewer requested changes, must be addressed before merge', impact: 'negative', priority: 9 });
+
+  // CI (max 25)
+  if (b.ci === 25) phrases.push({ text: 'CI passing', tip: 'All checks passing, safe to merge', impact: 'positive', priority: 3 });
+  else if (b.ci === 10) phrases.push({ text: 'CI pending', tip: 'Checks still running, wait for results', impact: 'neutral', priority: 5 });
+  else if (b.ci === 0) phrases.push({ text: 'CI failing', tip: 'Checks are failing, must be fixed before merge', impact: 'negative', priority: 8 });
+
+  // Size (max 10)
+  if (b.size === 10) phrases.push({ text: 'Small diff', tip: 'Small change, easy to review', impact: 'positive', priority: 1 });
+  else if (b.size === 0) phrases.push({ text: 'Very large diff', tip: 'Over 1000 lines changed, hard to review, consider splitting', impact: 'negative', priority: 5 });
+  else if (b.size === 2) phrases.push({ text: 'Large diff', tip: '500-1000 lines changed, may be hard to review', impact: 'negative', priority: 4 });
+
+  // Mergeable (max 15)
+  if (b.mergeable === 15) phrases.push({ text: 'Clean merge', tip: 'No conflicts, can merge cleanly', impact: 'positive', priority: 2 });
+  else if (b.mergeable === 0) phrases.push({ text: 'Has conflicts', tip: 'Merge conflicts detected, needs rebase', impact: 'negative', priority: 7 });
+
+  // Age (max 10)
+  if (b.age >= 8) phrases.push({ text: 'Getting stale', tip: 'Open for over a week, aging PRs risk merge conflicts', impact: 'neutral', priority: 3 });
+
+  // Rebase (max 5)
+  if (b.rebase === 5) phrases.push({ text: 'Freshly rebased', tip: 'Rebased since last approval, up to date with base branch', impact: 'positive', priority: 1 });
+
+  // Draft penalty
+  if (b.draft_penalty < 0) phrases.push({ text: 'Draft', tip: 'Draft PR, not ready for review, large score penalty', impact: 'negative', priority: 10 });
+
+  const order: Record<ScoreImpact, number> = { positive: 0, neutral: 1, negative: 2 };
+  phrases.sort((a, b) => order[a.impact] - order[b.impact] || b.priority - a.priority);
+  return phrases.slice(0, 4);
 }
 
 function ScoringGuide({ open, onToggle }: { open: boolean; onToggle: () => void }) {
@@ -68,10 +87,10 @@ function ScoringGuide({ open, onToggle }: { open: boolean; onToggle: () => void 
           <table className={styles.guideTable}>
             <thead><tr><th>Signal</th><th>Max</th><th>Logic</th></tr></thead>
             <tbody>
-              <tr><td>Review readiness</td><td>35</td><td>Approved (35), reviewed (20), no review (10), changes requested (0)</td></tr>
+              <tr><td>Review readiness</td><td>35</td><td>Approved (35), reviewed (15), no review (15), changes requested (0)</td></tr>
               <tr><td>CI status</td><td>25</td><td>Passing (25), pending (10), unknown (5), failing (0)</td></tr>
-              <tr><td>Diff size</td><td>15</td><td>Smaller PRs score higher — easier to review, less rebase risk</td></tr>
-              <tr><td>Mergeable</td><td>10</td><td>Clean (10), unstable (5), conflicts/blocked (0)</td></tr>
+              <tr><td>Mergeable</td><td>15</td><td>Clean (15), unstable (8), conflicts/blocked (0)</td></tr>
+              <tr><td>Diff size</td><td>10</td><td>Smaller PRs score higher — easier to review, less rebase risk</td></tr>
               <tr><td>Age</td><td>10</td><td>Older PRs rise in priority (linear over 7 days)</td></tr>
               <tr><td>Rebase check</td><td>5</td><td>+5 if rebased since last approval (needs re-review)</td></tr>
               <tr><td>Draft</td><td>-30</td><td>Penalty for draft PRs (not ready for review)</td></tr>
@@ -404,15 +423,22 @@ export function PrioritizeView() {
                     </span>
                     {item.pr.manual_priority === 'high' && <span className={`${styles.badge} ${styles.badgeRed}`}>{'\u2191'} High</span>}
                     {item.pr.manual_priority === 'low' && <span className={`${styles.badge} ${styles.badgeDim}`}>{'\u2193'} Low</span>}
-                    {item.pr.draft && <span className={`${styles.badge} ${styles.badgeDim}`}>Draft</span>}
-                    {reviewBadge(item.pr.review_state)}
-                    {ciBadge(item.pr.ci_status)}
                     {item.stack_name && (
                       <span className={`${styles.badge} ${styles.badgeStack}`}>{item.stack_name}</span>
                     )}
                     {item.blocked_by_pr_id && (
                       <span className={`${styles.badge} ${styles.badgeAmber}`}>Blocked</span>
                     )}
+                    {scoreSummary(item.priority_breakdown, item.pr.review_state).map((p, i) => {
+                      const cls = p.impact === 'positive' ? styles.badgeGreen
+                        : p.impact === 'negative' ? styles.badgeRed
+                        : styles.badgeDim;
+                      return (
+                        <Tooltip key={i} text={p.tip} position="bottom">
+                          <span className={`${styles.badge} ${cls}`}>{p.text}</span>
+                        </Tooltip>
+                      );
+                    })}
                   </div>
                 </div>
 
