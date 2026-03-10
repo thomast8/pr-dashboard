@@ -46,7 +46,7 @@ function RepoBrowser({ space, onClose }: { space: Space; onClose: () => void }) 
       return api.addRepo(name, space.id, owner);
     },
     onSuccess: (_data, trackedRepo) => {
-      qc.invalidateQueries({ queryKey: ['repos'] });
+      qc.invalidateQueries({ queryKey: ['repos'], refetchType: 'active' });
       qc.setQueryData<AvailableReposResponse>(
         ['available-repos', space.id],
         (old) => old ? {
@@ -182,8 +182,8 @@ export function OrgOverview() {
   const removeMutation = useMutation({
     mutationFn: (id: number) => api.removeRepo(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['repos'] });
-      qc.invalidateQueries({ queryKey: ['available-repos'] });
+      qc.invalidateQueries({ queryKey: ['repos'], refetchType: 'active' });
+      qc.invalidateQueries({ queryKey: ['available-repos'], refetchType: 'active' });
     },
   });
 
@@ -191,7 +191,7 @@ export function OrgOverview() {
     mutationFn: ({ id, visibility }: { id: number; visibility: 'private' | 'shared' }) =>
       api.setRepoVisibility(id, visibility),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['repos'] });
+      qc.invalidateQueries({ queryKey: ['repos'], refetchType: 'active' });
     },
   });
 

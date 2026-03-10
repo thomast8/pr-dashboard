@@ -5,13 +5,13 @@ from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from loguru import logger
-from sqlalchemy import func, or_, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.api.auth import get_github_user_id
 from src.api.schemas import RepoCreate, RepoDetail, RepoSummary, RepoVisibilityUpdate
-from src.db.engine import get_session
+from src.db.engine import async_session_factory, get_session
 from src.models.tables import CheckRun, PRStack, PullRequest, RepoTracker, Space, TrackedRepo
 from src.services.crypto import decrypt_token
 from src.services.github_client import GitHubClient
@@ -268,61 +268,48 @@ async def add_repo(
                     raise HTTPException(
                         status_code=409, detail="You are already tracking this repo"
                     )
-            # Create a new tracker for this user on the existing repo
-            tracker = RepoTracker(
-                user_id=repo_user_id,
-                repo_id=existing.id,
-                space_id=body.space_id,
-            )
-            session.add(tracker)
-            await session.commit()
-            _track_task(
-                asyncio.create_task(
-                    _background_sync(existing.id, existing.owner, existing.name, body.space_id)
-                )
-            )
-            return RepoDetail(
-                id=existing.id,
-                owner=existing.owner,
-                name=existing.name,
-                full_name=existing.full_name,
-                is_active=existing.is_active,
-                default_branch=existing.default_branch,
-                last_synced_at=existing.last_synced_at,
-                created_at=existing.created_at,
-                space_id=body.space_id,
-                visibility="private",
-                user_id=repo_user_id,
-            )
         else:
             # Reactivate inactive repo
             existing.is_active = True
             existing.last_synced_at = None
-            tracker = RepoTracker(
-                user_id=repo_user_id,
-                repo_id=existing.id,
-                space_id=body.space_id,
+
+        # Create a new tracker for this user on the existing repo.
+        # The repo may have been deleted by sync cleanup between the SELECT above
+        # and this INSERT, so flush to catch FK violations early.
+        tracker = RepoTracker(
+            user_id=repo_user_id,
+            repo_id=existing.id,
+            space_id=body.space_id,
+        )
+        session.add(tracker)
+        try:
+            await session.flush()
+        except Exception:
+            # Repo was deleted between the check and the insert; fall through
+            # to create a fresh repo below.
+            await session.rollback()
+            existing = None
+
+    if existing:
+        await session.commit()
+        _track_task(
+            asyncio.create_task(
+                _background_sync(existing.id, existing.owner, existing.name, body.space_id)
             )
-            session.add(tracker)
-            await session.commit()
-            _track_task(
-                asyncio.create_task(
-                    _background_sync(existing.id, existing.owner, existing.name, body.space_id)
-                )
-            )
-            return RepoDetail(
-                id=existing.id,
-                owner=existing.owner,
-                name=existing.name,
-                full_name=existing.full_name,
-                is_active=existing.is_active,
-                default_branch=existing.default_branch,
-                last_synced_at=existing.last_synced_at,
-                created_at=existing.created_at,
-                space_id=body.space_id,
-                visibility="private",
-                user_id=repo_user_id,
-            )
+        )
+        return RepoDetail(
+            id=existing.id,
+            owner=existing.owner,
+            name=existing.name,
+            full_name=existing.full_name,
+            is_active=existing.is_active,
+            default_branch=existing.default_branch,
+            last_synced_at=existing.last_synced_at,
+            created_at=existing.created_at,
+            space_id=body.space_id,
+            visibility="private",
+            user_id=repo_user_id,
+        )
 
     # Validate repo exists on GitHub using the space's account token
     account = space.github_account
@@ -395,36 +382,50 @@ async def add_repo(
 async def remove_repo(
     repo_id: int, request: Request, session: AsyncSession = Depends(get_session)
 ) -> None:
-    """Remove current user's tracking of a repo. Deactivates repo if no trackers remain."""
+    """Remove current user's tracking of a repo. Deletes repo if no trackers remain."""
     user_id = get_github_user_id(request)
 
-    repo = await session.get(TrackedRepo, repo_id)
-    if not repo:
+    repo_name = (
+        await session.execute(select(TrackedRepo.full_name).where(TrackedRepo.id == repo_id))
+    ).scalar_one_or_none()
+    if not repo_name:
         raise HTTPException(status_code=404, detail="Repo not found")
 
     if user_id:
-        # Delete just this user's tracker
-        tracker = (
-            await session.execute(
-                select(RepoTracker).where(
-                    RepoTracker.user_id == user_id,
-                    RepoTracker.repo_id == repo_id,
-                )
-            )
-        ).scalar_one_or_none()
-        if tracker:
-            await session.delete(tracker)
-
-    # If no trackers remain, deactivate the repo
-    remaining = (
+        # Delete just this user's tracker via bulk SQL (no ORM lock)
         await session.execute(
-            select(func.count(RepoTracker.id)).where(RepoTracker.repo_id == repo_id)
+            delete(RepoTracker).where(
+                RepoTracker.user_id == user_id,
+                RepoTracker.repo_id == repo_id,
+            )
         )
-    ).scalar_one()
-    if remaining == 0:
-        repo.is_active = False
 
     await session.commit()
+    logger.info(f"Untracked repo {repo_name} for user {user_id}")
+
+    # Try to delete the orphaned repo in a fresh session. If a sync holds the
+    # row lock, NOWAIT fails fast and the sync service cleans up after it finishes.
+    async with async_session_factory() as cleanup_session:
+        remaining = (
+            await cleanup_session.execute(
+                select(func.count(RepoTracker.id)).where(RepoTracker.repo_id == repo_id)
+            )
+        ).scalar_one()
+        if remaining == 0:
+            try:
+                await cleanup_session.execute(
+                    select(TrackedRepo.id)
+                    .where(TrackedRepo.id == repo_id)
+                    .with_for_update(nowait=True)
+                )
+                await cleanup_session.execute(delete(TrackedRepo).where(TrackedRepo.id == repo_id))
+                await cleanup_session.commit()
+                logger.info(f"Deleted repo {repo_name}: no trackers remain")
+            except Exception:
+                await cleanup_session.rollback()
+                logger.info(f"Deferred deletion of repo {repo_name}: sync in progress")
+        else:
+            logger.info(f"Repo {repo_name} still has {remaining} tracker(s)")
 
 
 @router.post("/{repo_id}/sync", status_code=202)

@@ -238,10 +238,10 @@ async def remove_account(
     if not account or account.user_id != user_id:
         raise HTTPException(status_code=404, detail="Account not found")
 
-    from sqlalchemy import delete, func
-    from sqlalchemy import select as sa_select
+    from sqlalchemy import delete
 
-    from src.models.tables import RepoTracker, TrackedRepo
+    from src.models.tables import RepoTracker
+    from src.services.repo_cleanup import delete_orphaned_repos
 
     space_ids = (
         (await session.execute(select(Space.id).where(Space.github_account_id == account_id)))
@@ -253,25 +253,8 @@ async def remove_account(
         # Delete RepoTracker rows where space_id is in the account's spaces
         await session.execute(delete(RepoTracker).where(RepoTracker.space_id.in_(space_ids)))
 
-        # Deactivate any TrackedRepo with zero remaining trackers
-        orphan_repo_ids = (
-            (
-                await session.execute(
-                    sa_select(TrackedRepo.id)
-                    .outerjoin(RepoTracker, RepoTracker.repo_id == TrackedRepo.id)
-                    .where(TrackedRepo.is_active.is_(True))
-                    .group_by(TrackedRepo.id)
-                    .having(func.count(RepoTracker.id) == 0)
-                )
-            )
-            .scalars()
-            .all()
-        )
-        if orphan_repo_ids:
-            for repo_id in orphan_repo_ids:
-                repo = await session.get(TrackedRepo, repo_id)
-                if repo:
-                    repo.is_active = False
+        # Delete any TrackedRepo with zero remaining trackers
+        await delete_orphaned_repos(session)
 
         # Delete the spaces themselves
         await session.execute(delete(Space).where(Space.id.in_(space_ids)))

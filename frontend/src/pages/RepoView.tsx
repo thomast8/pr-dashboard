@@ -142,7 +142,7 @@ export function RepoView() {
     mutationFn: ({ stackId, name }: { stackId: number; name: string }) =>
       api.renameStack(repo!.id, stackId, name),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['stacks', repo?.id] });
+      qc.invalidateQueries({ queryKey: ['stacks', repo?.id], refetchType: 'active' });
       setRenamingStack(false);
     },
   });
@@ -150,9 +150,9 @@ export function RepoView() {
   const syncMutation = useMutation({
     mutationFn: () => api.syncRepo(repo!.id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['repos'] });
-      qc.invalidateQueries({ queryKey: ['pulls', repo?.id] });
-      qc.invalidateQueries({ queryKey: ['stacks', repo?.id] });
+      qc.invalidateQueries({ queryKey: ['repos'], refetchType: 'active' });
+      qc.invalidateQueries({ queryKey: ['pulls', repo?.id], refetchType: 'active' });
+      qc.invalidateQueries({ queryKey: ['stacks', repo?.id], refetchType: 'active' });
     },
   });
 

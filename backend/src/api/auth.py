@@ -20,6 +20,7 @@ from src.models.tables import GitHubAccount, User
 from src.services.crypto import encrypt_token
 from src.services.discovery import discover_spaces_for_account
 from src.services.events import broadcast_event
+from src.services.repo_cleanup import delete_orphaned_repos
 
 OAUTH_STATE_MAX_AGE = 600  # 10 minutes
 
@@ -183,6 +184,10 @@ async def delete_my_account(request: Request, response: Response):
         if not user:
             return JSONResponse(status_code=404, content={"detail": "User not found"})
         await session.delete(user)
+        await session.flush()  # Trigger CASCADE deletes for RepoTracker rows
+        deleted = await delete_orphaned_repos(session)
+        if deleted:
+            logger.info(f"Deleted {deleted} orphaned repo(s) after deleting user {user_id}")
         await session.commit()
 
     response.delete_cookie(GITHUB_COOKIE, path="/")

@@ -40,22 +40,28 @@ export function useSSE() {
       };
 
       source.addEventListener('sync_complete', (event: MessageEvent) => {
-        qc.invalidateQueries({ queryKey: ['repos'] });
+        // refetchType: 'active' forces immediate refetch of mounted queries
+        // instead of waiting for staleTime to expire
+        qc.invalidateQueries({ queryKey: ['repos'], refetchType: 'active' });
         try {
           const data = JSON.parse(event.data);
           if (data.repo_id) {
-            qc.invalidateQueries({ queryKey: ['pulls', data.repo_id] });
-            qc.invalidateQueries({ queryKey: ['stacks', data.repo_id] });
+            qc.invalidateQueries({ queryKey: ['pulls', data.repo_id], refetchType: 'active' });
+            qc.invalidateQueries({ queryKey: ['stacks', data.repo_id], refetchType: 'active' });
+            qc.invalidateQueries({ queryKey: ['pr-detail'], refetchType: 'active' });
+            qc.invalidateQueries({ queryKey: ['prioritized'], refetchType: 'active' });
           }
         } catch {
-          qc.invalidateQueries({ queryKey: ['pulls'] });
-          qc.invalidateQueries({ queryKey: ['stacks'] });
+          qc.invalidateQueries({ queryKey: ['pulls'], refetchType: 'active' });
+          qc.invalidateQueries({ queryKey: ['stacks'], refetchType: 'active' });
+          qc.invalidateQueries({ queryKey: ['pr-detail'], refetchType: 'active' });
+          qc.invalidateQueries({ queryKey: ['prioritized'], refetchType: 'active' });
         }
       });
 
       source.addEventListener('spaces_discovered', () => {
-        qc.invalidateQueries({ queryKey: ['spaces'] });
-        qc.invalidateQueries({ queryKey: ['accounts'] });
+        qc.invalidateQueries({ queryKey: ['spaces'], refetchType: 'active' });
+        qc.invalidateQueries({ queryKey: ['accounts'], refetchType: 'active' });
       });
 
       source.addEventListener('sync_error', (event: MessageEvent) => {

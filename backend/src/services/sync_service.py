@@ -4,7 +4,7 @@ import asyncio
 from datetime import UTC, datetime, timedelta
 
 from loguru import logger
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -242,6 +242,9 @@ class SyncService:
 
                 await session.commit()
 
+                # Clean up repo if all trackers were removed while sync was running
+                await self._delete_if_orphaned(repo_id, f"{owner}/{name}")
+
             async with async_session_factory() as session:
                 stacks = await detect_stacks(session, repo_id)
                 await session.commit()
@@ -256,6 +259,21 @@ class SyncService:
         finally:
             if close_after:
                 await github.close()
+
+    async def _delete_if_orphaned(self, repo_id: int, repo_name: str) -> None:
+        """Delete a repo if all its trackers were removed during sync."""
+        async with async_session_factory() as session:
+            remaining = (
+                await session.execute(
+                    select(func.count(RepoTracker.id)).where(RepoTracker.repo_id == repo_id)
+                )
+            ).scalar_one()
+            if remaining == 0:
+                from sqlalchemy import delete
+
+                await session.execute(delete(TrackedRepo).where(TrackedRepo.id == repo_id))
+                await session.commit()
+                logger.info(f"  Deleted orphaned repo {repo_name} after sync")
 
     async def _upsert_pr(
         self,

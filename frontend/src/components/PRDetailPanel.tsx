@@ -81,8 +81,8 @@ export function PRDetailPanel({ repoId, prNumber, onClose }: Props) {
   };
 
   const invalidatePr = () => {
-    qc.invalidateQueries({ queryKey: ['pulls', repoId] });
-    qc.invalidateQueries({ queryKey: ['pr-detail', repoId, prNumber] });
+    qc.invalidateQueries({ queryKey: ['pulls', repoId], refetchType: 'active' });
+    qc.invalidateQueries({ queryKey: ['pr-detail', repoId, prNumber], refetchType: 'active' });
   };
 
   const addReviewerMutation = useMutation({
@@ -102,7 +102,7 @@ export function PRDetailPanel({ repoId, prNumber, onClose }: Props) {
       api.setPriority(repoId, prNumber, priority),
     onSuccess: () => {
       invalidatePr();
-      qc.invalidateQueries({ queryKey: ['prioritized'] });
+      qc.invalidateQueries({ queryKey: ['prioritized'], refetchType: 'active' });
     },
   });
 

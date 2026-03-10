@@ -118,8 +118,10 @@ class TrackedRepo(Base):
     trackers: Mapped[list["RepoTracker"]] = relationship(
         back_populates="repo", cascade="all, delete-orphan"
     )
-    pull_requests: Mapped[list["PullRequest"]] = relationship(back_populates="repo")
-    stacks: Mapped[list["PRStack"]] = relationship(back_populates="repo")
+    pull_requests: Mapped[list["PullRequest"]] = relationship(
+        back_populates="repo", passive_deletes=True
+    )
+    stacks: Mapped[list["PRStack"]] = relationship(back_populates="repo", passive_deletes=True)
 
 
 class PullRequest(Base):

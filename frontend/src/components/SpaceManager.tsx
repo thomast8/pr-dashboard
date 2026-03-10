@@ -33,8 +33,8 @@ export function SpaceManager({ onClose }: Props) {
     mutationFn: ({ id, isActive }: { id: number; isActive: boolean }) =>
       api.toggleSpace(id, isActive),
     onSuccess: (_data, { id, isActive }) => {
-      qc.invalidateQueries({ queryKey: ['spaces'] });
-      qc.invalidateQueries({ queryKey: ['repos'] });
+      qc.invalidateQueries({ queryKey: ['spaces'], refetchType: 'active' });
+      qc.invalidateQueries({ queryKey: ['repos'], refetchType: 'active' });
       if (isActive) {
         qc.prefetchQuery({
           queryKey: ['available-repos', id],
@@ -47,15 +47,15 @@ export function SpaceManager({ onClose }: Props) {
 
   const discoverMutation = useMutation({
     mutationFn: (accountId: number) => api.discoverSpaces(accountId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['spaces'] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['spaces'], refetchType: 'active' }),
   });
 
   const removeAccountMutation = useMutation({
     mutationFn: (accountId: number) => api.removeAccount(accountId),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['accounts'] });
-      qc.invalidateQueries({ queryKey: ['spaces'] });
-      qc.invalidateQueries({ queryKey: ['repos'] });
+      qc.invalidateQueries({ queryKey: ['accounts'], refetchType: 'active' });
+      qc.invalidateQueries({ queryKey: ['spaces'], refetchType: 'active' });
+      qc.invalidateQueries({ queryKey: ['repos'], refetchType: 'active' });
     },
   });
 
@@ -159,8 +159,8 @@ export function SpaceManager({ onClose }: Props) {
               onLinked={() => {
                 setShowTokenForm(false);
                 setPatLinked(true);
-                qc.invalidateQueries({ queryKey: ['accounts'] });
-                qc.invalidateQueries({ queryKey: ['spaces'] });
+                qc.invalidateQueries({ queryKey: ['accounts'], refetchType: 'active' });
+                qc.invalidateQueries({ queryKey: ['spaces'], refetchType: 'active' });
               }}
               onCancel={() => setShowTokenForm(false)}
             />

@@ -8,6 +8,7 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+import src.api.repos as repos_module
 from src.db.base import Base
 from src.db.engine import get_session
 from src.main import app
@@ -52,8 +53,13 @@ async def client(async_engine) -> AsyncGenerator[AsyncClient, None]:
 
     app.dependency_overrides[get_session] = override_get_session
 
+    # Patch async_session_factory used by cleanup code in repos.py
+    original_factory = repos_module.async_session_factory
+    repos_module.async_session_factory = factory
+
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
 
     app.dependency_overrides.clear()
+    repos_module.async_session_factory = original_factory

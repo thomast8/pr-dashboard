@@ -206,16 +206,17 @@ async def test_list_repos_with_stats(authed_client, db_session: AsyncSession, sp
 
 
 @pytest.mark.asyncio
-async def test_delete_repo_soft_deletes(
+async def test_delete_repo_hard_deletes(
     authed_client, db_session: AsyncSession, space_with_account
 ):
-    """DELETE should remove the user's tracker; repo deactivates when no trackers remain."""
+    """DELETE should remove the user's tracker; repo is deleted when no trackers remain."""
     user = space_with_account["user"]
     space = space_with_account["space"]
 
     repo = TrackedRepo(owner="del", name="repo", full_name="del/repo", default_branch="main")
     db_session.add(repo)
     await db_session.flush()
+    repo_id = repo.id
 
     tracker = RepoTracker(
         user_id=user.id,
@@ -225,11 +226,14 @@ async def test_delete_repo_soft_deletes(
     db_session.add(tracker)
     await db_session.commit()
 
-    resp = await authed_client.delete(f"/api/repos/{repo.id}")
+    resp = await authed_client.delete(f"/api/repos/{repo_id}")
     assert resp.status_code == 204
 
-    await db_session.refresh(repo)
-    assert repo.is_active is False
+    # Verify the repo no longer appears in the API response
+    list_resp = await authed_client.get("/api/repos")
+    assert list_resp.status_code == 200
+    repo_ids = [r["id"] for r in list_resp.json()]
+    assert repo_id not in repo_ids
 
 
 @pytest.mark.asyncio
