@@ -1,6 +1,6 @@
 /** Slide-out right panel showing PR detail, checks, reviews, and requested reviewers. */
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, type PRDetail, type User, type Space } from '../api/client';
 import { StatusDot } from './StatusDot';
@@ -44,15 +44,20 @@ export function PRDetailPanel({ repoId, prNumber, onClose }: Props) {
   });
   const activeTeam = team?.filter((m) => m.is_active) || [];
 
-  // Build login → display name map from team data
+  // Build login → display name and login → avatar maps from team data
   const nameMap = new Map<string, string>();
+  const avatarMap = new Map<string, string>();
   for (const m of (team || [])) {
     const displayName = m.name || m.login;
     for (const acct of m.linked_accounts || []) {
       nameMap.set(acct.login, displayName);
+      if (acct.avatar_url) avatarMap.set(acct.login, acct.avatar_url);
     }
     if (!nameMap.has(m.login)) {
       nameMap.set(m.login, displayName);
+    }
+    if (m.avatar_url && !avatarMap.has(m.login)) {
+      avatarMap.set(m.login, m.avatar_url);
     }
   }
 
@@ -106,13 +111,43 @@ export function PRDetailPanel({ repoId, prNumber, onClose }: Props) {
     },
   });
 
-  // Team members not already requested as reviewers
-  const currentReviewerLogins = new Set(
-    pr?.github_requested_reviewers.map((r) => r.login) || [],
-  );
+  // Build unified reviewer list: merge requested reviewers + reviews
+  const unifiedReviewers = useMemo(() => {
+    if (!pr) return [];
+    const map = new Map<string, {
+      login: string;
+      state: string;
+      stateLabel: string;
+    }>();
+
+    // First pass: reviews sorted by submitted_at ascending (last write wins)
+    const sorted = [...pr.reviews].sort(
+      (a, b) => new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime(),
+    );
+    for (const r of sorted) {
+      const state =
+        r.state === 'APPROVED' ? 'approved'
+        : r.state === 'CHANGES_REQUESTED' ? 'changes_requested'
+        : 'reviewed';
+      const stateLabel = r.state.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+      map.set(r.reviewer, { login: r.reviewer, state, stateLabel });
+    }
+
+    // Second pass: requested reviewers not yet in map are "pending"
+    for (const r of pr.github_requested_reviewers) {
+      if (!map.has(r.login)) {
+        map.set(r.login, { login: r.login, state: 'pending', stateLabel: 'Pending' });
+      }
+    }
+
+    return Array.from(map.values());
+  }, [pr]);
+
+  // Exclude anyone already in the unified list from the add-reviewer dropdown
+  const allReviewerLogins = new Set(unifiedReviewers.map((r) => r.login));
 
   const notAlreadyRequested = activeTeam.filter(
-    (m: User) => !currentReviewerLogins.has(m.login),
+    (m: User) => !allReviewerLogins.has(m.login),
   );
 
   const matchesSearch = (m: User) => {
@@ -177,21 +212,30 @@ export function PRDetailPanel({ repoId, prNumber, onClose }: Props) {
 
           {/* Reviewers */}
           <section className={styles.section}>
-            <Tooltip text="Requested reviewers — synced with GitHub" position="right">
-              <h3>Reviewers</h3>
+            <Tooltip text="Reviewers and review status — synced with GitHub" position="right">
+              <h3>Reviewers ({unifiedReviewers.length})</h3>
             </Tooltip>
-            {pr.github_requested_reviewers.length > 0 ? (
-              <div className={styles.ghReviewerList}>
-                {pr.github_requested_reviewers.map((r) => (
-                  <div key={r.login} className={styles.ghReviewer}>
-                    {r.avatar_url && (
+            {unifiedReviewers.length > 0 ? (
+              <div className={styles.reviewList}>
+                {unifiedReviewers.map((r) => (
+                  <div key={r.login} className={styles.reviewItem}>
+                    {avatarMap.get(r.login) ? (
                       <img
-                        src={r.avatar_url}
+                        src={avatarMap.get(r.login)}
                         alt={r.login}
                         className={styles.ghReviewerAvatar}
                       />
+                    ) : (
+                      <span className={styles.ghReviewerAvatarPlaceholder} />
                     )}
-                    <span className={styles.ghReviewerLogin}>{nameMap.get(r.login) || r.login}</span>
+                    <StatusDot status={r.state} size={7} />
+                    <span className={styles.reviewer}>{nameMap.get(r.login) || r.login}</span>
+                    <span className={`${styles.reviewState} ${
+                      r.state === 'approved' ? styles.reviewApproved
+                      : r.state === 'changes_requested' ? styles.reviewChanges
+                      : r.state === 'reviewed' ? styles.reviewCommented
+                      : styles.reviewerPending
+                    }`}>{r.stateLabel}</span>
                     <button
                       className={styles.removeReviewerBtn}
                       onClick={() => removeReviewerMutation.mutate(r.login)}
@@ -204,7 +248,12 @@ export function PRDetailPanel({ repoId, prNumber, onClose }: Props) {
                 ))}
               </div>
             ) : (
-              <div className={styles.ghUnassigned}>No reviewers requested</div>
+              <div className={styles.ghUnassigned}>No reviewers</div>
+            )}
+            {pr.rebased_since_approval && (
+              <Tooltip text="New commits were force-pushed after the last approval — re-review may be needed" position="top">
+                <div className={styles.rebaseWarning}>Rebased since last approval</div>
+              </Tooltip>
             )}
             <div className={styles.addReviewerDropdown} ref={addReviewerRef}>
               <button
@@ -308,30 +357,6 @@ export function PRDetailPanel({ repoId, prNumber, onClose }: Props) {
             )}
           </section>
 
-          {/* Reviews */}
-          <section className={styles.section}>
-            <Tooltip text="GitHub review approvals and feedback" position="right">
-              <h3>Reviews ({pr.reviews.length})</h3>
-            </Tooltip>
-            {pr.reviews.length === 0 ? (
-              <div className={styles.empty}>No reviews yet</div>
-            ) : (
-              <div className={styles.reviewList}>
-                {pr.reviews.map((r) => (
-                  <div key={r.id} className={styles.reviewItem}>
-                    <StatusDot status={r.state.toLowerCase()} size={7} />
-                    <span className={styles.reviewer}>{nameMap.get(r.reviewer) || r.reviewer}</span>
-                    <span className={`${styles.reviewState} ${r.state === 'APPROVED' ? styles.reviewApproved : r.state === 'CHANGES_REQUESTED' ? styles.reviewChanges : styles.reviewCommented}`}>{r.state.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase())}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-            {pr.rebased_since_approval && (
-              <Tooltip text="New commits were force-pushed after the last approval — re-review may be needed" position="top">
-                <div className={styles.rebaseWarning}>Rebased since last approval</div>
-              </Tooltip>
-            )}
-          </section>
 
         </div>
       )}

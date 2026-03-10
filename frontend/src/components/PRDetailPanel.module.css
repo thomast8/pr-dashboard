@@ -115,11 +115,12 @@
   padding: 0.25rem 0;
 }
 
-.reviewer { color: var(--accent-teal); }
-.reviewState { font-size: 0.72rem; margin-left: auto; }
+.reviewer { color: var(--accent-teal); flex: 1; min-width: 0; }
+.reviewState { font-size: 0.72rem; white-space: nowrap; }
 .reviewApproved { color: var(--review-approved); }
 .reviewChanges { color: var(--review-changes); }
 .reviewCommented { color: var(--review-commented); }
+.reviewerPending { color: var(--ci-pending); }
 
 .rebaseWarning {
   font-size: 0.65rem;
@@ -149,6 +150,13 @@
   width: 20px;
   height: 20px;
   border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.ghReviewerAvatarPlaceholder {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
 }
 
 .ghReviewerLogin {
