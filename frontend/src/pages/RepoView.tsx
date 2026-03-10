@@ -14,7 +14,7 @@ export function RepoView() {
   const { owner, name } = useParams<{ owner: string; name: string }>();
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { selectedPrId, selectPr } = useStore();
+  const { selectedPrNumber, selectPr } = useStore();
 
   const [authorFilter, setAuthorFilter] = useState('');
   const [ciFilter, setCiFilter] = useState('');
@@ -565,7 +565,7 @@ export function RepoView() {
             highlightStackId={stackFilter}
             dimReviewerLogin={reviewerFilter || null}
             dimAuthor={authorFilter || null}
-            selectedPrId={selectedPrId}
+            selectedPrNumber={selectedPrNumber}
             onSelectPr={selectPr}
             onRenameStack={(stackId, name) => renameMutation.mutate({ stackId, name })}
             nameMap={authorInfoMap}
@@ -573,8 +573,8 @@ export function RepoView() {
         )}
       </div>
 
-      {selectedPrId && repo && (
-        <PRDetailPanel repoId={repo.id} prId={selectedPrId} onClose={() => selectPr(null)} />
+      {selectedPrNumber && repo && (
+        <PRDetailPanel repoId={repo.id} prNumber={selectedPrNumber} onClose={() => selectPr(null)} />
       )}
     </div>
   );

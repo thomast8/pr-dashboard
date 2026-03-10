@@ -3,9 +3,9 @@
 import { create } from 'zustand';
 
 interface AppState {
-  /** Currently selected PR id for the detail panel */
-  selectedPrId: number | null;
-  selectPr: (id: number | null) => void;
+  /** Currently selected PR number for the detail panel */
+  selectedPrNumber: number | null;
+  selectPr: (prNumber: number | null) => void;
 
   /** Repo ID for cross-repo PR detail panel (e.g. prioritize view) */
   selectedRepoId: number | null;
@@ -21,14 +21,14 @@ interface AppState {
 }
 
 export const useStore = create<AppState>((set) => ({
-  selectedPrId: null,
-  selectPr: (id) => set({ selectedPrId: id, detailOpen: id !== null }),
+  selectedPrNumber: null,
+  selectPr: (prNumber) => set({ selectedPrNumber: prNumber, detailOpen: prNumber !== null }),
 
   selectedRepoId: null,
   setSelectedRepoId: (id) => set({ selectedRepoId: id }),
 
   detailOpen: false,
-  setDetailOpen: (open) => set({ detailOpen: open, selectedPrId: open ? undefined : null }),
+  setDetailOpen: (open) => set({ detailOpen: open, selectedPrNumber: open ? undefined : null }),
 
   sidebarCollapsed: false,
   toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),

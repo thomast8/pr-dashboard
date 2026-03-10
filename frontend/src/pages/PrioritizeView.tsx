@@ -85,7 +85,7 @@ function ScoringGuide({ open, onToggle }: { open: boolean; onToggle: () => void 
 }
 
 export function PrioritizeView() {
-  const { selectedPrId, selectPr, selectedRepoId, setSelectedRepoId } = useStore();
+  const { selectedPrNumber, selectPr, selectedRepoId, setSelectedRepoId } = useStore();
   const [hoveredId, setHoveredId] = useState<number | null>(null);
   const [filterRepoId, setFilterRepoId] = useState<number | undefined>(undefined);
   const [guideOpen, setGuideOpen] = useState(false);
@@ -121,7 +121,7 @@ export function PrioritizeView() {
 
   function handleSelectPr(item: PrioritizedPR) {
     setSelectedRepoId(item.repo_id);
-    selectPr(item.pr.id);
+    selectPr(item.pr.number);
   }
 
   return (
@@ -192,7 +192,7 @@ export function PrioritizeView() {
               )}
 
               <div
-                className={`${styles.row} ${selectedPrId === item.pr.id ? styles.rowSelected : ''}`}
+                className={`${styles.row} ${selectedPrNumber === item.pr.number ? styles.rowSelected : ''}`}
                 onClick={() => handleSelectPr(item)}
               >
                 <div className={styles.position}>#{item.merge_position}</div>
@@ -259,10 +259,10 @@ export function PrioritizeView() {
         )}
       </div>
 
-      {selectedPrId && selectedRepoId && (
+      {selectedPrNumber && selectedRepoId && (
         <PRDetailPanel
           repoId={selectedRepoId}
-          prId={selectedPrId}
+          prNumber={selectedPrNumber}
           onClose={() => { selectPr(null); setSelectedRepoId(null); }}
         />
       )}

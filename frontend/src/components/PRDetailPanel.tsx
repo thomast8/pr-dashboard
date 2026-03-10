@@ -9,11 +9,11 @@ import styles from './PRDetailPanel.module.css';
 
 interface Props {
   repoId: number;
-  prId: number;
+  prNumber: number;
   onClose: () => void;
 }
 
-export function PRDetailPanel({ repoId, prId, onClose }: Props) {
+export function PRDetailPanel({ repoId, prNumber, onClose }: Props) {
   const qc = useQueryClient();
   const [addReviewerOpen, setAddReviewerOpen] = useState(false);
   const [reviewerSearch, setReviewerSearch] = useState('');
@@ -30,17 +30,10 @@ export function PRDetailPanel({ repoId, prId, onClose }: Props) {
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  const { data: pulls } = useQuery({
-    queryKey: ['pulls', repoId],
-    queryFn: () => api.listPulls(repoId),
-    enabled: !!repoId,
-  });
-  const prSummary = pulls?.find((p) => p.id === prId);
-
   const { data: detail } = useQuery({
-    queryKey: ['pr-detail', repoId, prSummary?.number],
-    queryFn: () => api.getPull(repoId, prSummary!.number),
-    enabled: !!prSummary,
+    queryKey: ['pr-detail', repoId, prNumber],
+    queryFn: () => api.getPull(repoId, prNumber),
+    enabled: !!prNumber,
   });
 
   const pr: PRDetail | undefined = detail;
@@ -89,51 +82,38 @@ export function PRDetailPanel({ repoId, prId, onClose }: Props) {
 
   const invalidatePr = () => {
     qc.invalidateQueries({ queryKey: ['pulls', repoId] });
-    qc.invalidateQueries({ queryKey: ['pr-detail', repoId, prSummary?.number] });
+    qc.invalidateQueries({ queryKey: ['pr-detail', repoId, prNumber] });
   };
 
   const addReviewerMutation = useMutation({
     mutationFn: (userId: number) =>
-      api.updateReviewers(repoId, prSummary!.number, [userId], []),
+      api.updateReviewers(repoId, prNumber, [userId], []),
     onSuccess: invalidatePr,
   });
 
   const removeReviewerMutation = useMutation({
     mutationFn: (login: string) =>
-      api.updateReviewers(repoId, prSummary!.number, [], [login]),
+      api.updateReviewers(repoId, prNumber, [], [login]),
     onSuccess: invalidatePr,
   });
 
   const priorityMutation = useMutation({
     mutationFn: (priority: string | null) =>
-      api.setPriority(repoId, prSummary!.number, priority),
+      api.setPriority(repoId, prNumber, priority),
     onSuccess: () => {
       invalidatePr();
       qc.invalidateQueries({ queryKey: ['prioritized'] });
     },
   });
 
-  // All GitHub logins actively involved in this repo (PR authors + requested reviewers)
-  const repoInvolvedLogins = new Set<string>();
-  for (const p of pulls || []) {
-    repoInvolvedLogins.add(p.author);
-    for (const r of p.github_requested_reviewers || []) {
-      repoInvolvedLogins.add(r.login);
-    }
-  }
-
-  // Team members not already requested as reviewers, split into repo-involved vs others
+  // Team members not already requested as reviewers
   const currentReviewerLogins = new Set(
     pr?.github_requested_reviewers.map((r) => r.login) || [],
   );
-  const isInvolvedInRepo = (m: User) =>
-    repoInvolvedLogins.has(m.login) || m.linked_accounts.some((a) => repoInvolvedLogins.has(a.login));
 
   const notAlreadyRequested = activeTeam.filter(
     (m: User) => !currentReviewerLogins.has(m.login),
   );
-  const repoReviewers = notAlreadyRequested.filter(isInvolvedInRepo);
-  const otherReviewers = notAlreadyRequested.filter((m) => !isInvolvedInRepo(m));
 
   const matchesSearch = (m: User) => {
     if (!reviewerSearch) return true;
@@ -177,7 +157,7 @@ export function PRDetailPanel({ repoId, prId, onClose }: Props) {
             <div className={styles.priorityToggle}>
               {(['high', null, 'low'] as const).map((val) => {
                 const label = val === 'high' ? 'High' : val === 'low' ? 'Low' : 'Normal';
-                const current = prSummary?.manual_priority ?? null;
+                const current = pr?.manual_priority ?? null;
                 const isActive = current === val;
                 return (
                   <button
@@ -256,7 +236,7 @@ export function PRDetailPanel({ repoId, prId, onClose }: Props) {
                       }}
                     />
                   </div>
-                  {repoReviewers.filter(matchesSearch).map((m: User) => {
+                  {notAlreadyRequested.filter(matchesSearch).map((m: User) => {
                     const resolved = resolveLogin(m);
                     return (
                       <div
@@ -278,35 +258,6 @@ export function PRDetailPanel({ repoId, prId, onClose }: Props) {
                       </div>
                     );
                   })}
-                  {otherReviewers.filter(matchesSearch).length > 0 && (
-                    <>
-                      <div className={styles.addReviewerDivider}>
-                        <span>Other team members</span>
-                      </div>
-                      {otherReviewers.filter(matchesSearch).map((m: User) => {
-                        const resolved = resolveLogin(m);
-                        return (
-                          <div
-                            key={m.id}
-                            className={styles.addReviewerMenuItem}
-                            onClick={() => {
-                              addReviewerMutation.mutate(m.id);
-                              setAddReviewerOpen(false);
-                              setReviewerSearch('');
-                            }}
-                          >
-                            {m.avatar_url && <img src={m.avatar_url} alt={m.login} className={styles.addReviewerAvatar} />}
-                            <div className={styles.addReviewerInfo}>
-                              <span>{m.name || m.login}</span>
-                              {resolved && (
-                                <span className={styles.addReviewerHint}>will use @{resolved}</span>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </>
-                  )}
                   {notAlreadyRequested.filter(matchesSearch).length === 0 && (
                     <div className={styles.addReviewerEmpty}>No matching team members</div>
                   )}

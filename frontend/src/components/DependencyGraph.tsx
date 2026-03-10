@@ -17,8 +17,8 @@ interface Props {
   highlightStackId: number | null;
   dimReviewerLogin: string | null;
   dimAuthor: string | null;
-  selectedPrId: number | null;
-  onSelectPr: (id: number | null) => void;
+  selectedPrNumber: number | null;
+  onSelectPr: (prNumber: number | null) => void;
   onRenameStack?: (stackId: number, name: string) => void;
   nameMap?: Map<string, { avatar: string | null; displayName: string }>;
 }
@@ -50,7 +50,7 @@ interface StackLabel {
 
 const LABEL_H = 24;
 
-export function DependencyGraph({ prs, stacks, highlightStackId, dimReviewerLogin, dimAuthor, selectedPrId, onSelectPr, onRenameStack, nameMap }: Props) {
+export function DependencyGraph({ prs, stacks, highlightStackId, dimReviewerLogin, dimAuthor, selectedPrNumber, onSelectPr, onRenameStack, nameMap }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [editingStackId, setEditingStackId] = useState<number | null>(null);
   const [editValue, setEditValue] = useState('');
@@ -386,14 +386,14 @@ export function DependencyGraph({ prs, stacks, highlightStackId, dimReviewerLogi
           ))}
 
           {layout.map((pos) => {
-            const isSelected = selectedPrId === pos.pr.id;
+            const isSelected = selectedPrNumber === pos.pr.number;
             const dimmed = isDimmed(pos.pr);
             return (
               <div
                 key={pos.pr.id}
                 className={`${styles.card} ${isSelected ? styles.cardSelected : ''} ${dimmed ? styles.cardDimmed : ''} ${reviewBorderClass(pos.pr)}`}
                 style={{ left: pos.x, top: pos.y, width: CARD_W, height: CARD_H }}
-                onClick={() => onSelectPr(isSelected ? null : pos.pr.id)}
+                onClick={() => onSelectPr(isSelected ? null : pos.pr.number)}
               >
                 {renderCard(pos.pr)}
               </div>
@@ -409,13 +409,13 @@ export function DependencyGraph({ prs, stacks, highlightStackId, dimReviewerLogi
           </Tooltip>
           <div className={styles.standaloneGrid}>
             {standalones.map((pr) => {
-              const isSelected = selectedPrId === pr.id;
+              const isSelected = selectedPrNumber === pr.number;
               const dimmed = isDimmed(pr);
               return (
                 <div
                   key={pr.id}
                   className={`${styles.standaloneCard} ${isSelected ? styles.cardSelected : ''} ${dimmed ? styles.cardDimmed : ''} ${reviewBorderClass(pr)}`}
-                  onClick={() => onSelectPr(isSelected ? null : pr.id)}
+                  onClick={() => onSelectPr(isSelected ? null : pr.number)}
                 >
                   {renderCard(pr)}
                 </div>
