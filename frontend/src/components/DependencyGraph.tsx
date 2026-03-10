@@ -5,7 +5,7 @@
  * Standalone PRs shown in a flexbox grid below.
  */
 
-import { useMemo, useRef, useCallback } from 'react';
+import { useMemo, useRef, useCallback, useState } from 'react';
 import type { PRSummary, Stack } from '../api/client';
 import { StatusDot } from './StatusDot';
 import { Tooltip } from './Tooltip';
@@ -19,6 +19,7 @@ interface Props {
   dimAuthor: string | null;
   selectedPrId: number | null;
   onSelectPr: (id: number | null) => void;
+  onRenameStack?: (stackId: number, name: string) => void;
   nameMap?: Map<string, { avatar: string | null; displayName: string }>;
 }
 
@@ -40,8 +41,19 @@ interface Arrow {
   dimmed: boolean;
 }
 
-export function DependencyGraph({ prs, stacks, highlightStackId, dimReviewerLogin, dimAuthor, selectedPrId, onSelectPr, nameMap }: Props) {
+interface StackLabel {
+  stackId: number;
+  name: string;
+  x: number;
+  y: number;
+}
+
+const LABEL_H = 24;
+
+export function DependencyGraph({ prs, stacks, highlightStackId, dimReviewerLogin, dimAuthor, selectedPrId, onSelectPr, onRenameStack, nameMap }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [editingStackId, setEditingStackId] = useState<number | null>(null);
+  const [editValue, setEditValue] = useState('');
   // Build highlighted PR set
   const highlightedPrIds = useMemo(() => {
     if (highlightStackId == null) return null;
@@ -51,7 +63,7 @@ export function DependencyGraph({ prs, stacks, highlightStackId, dimReviewerLogi
   }, [stacks, highlightStackId]);
 
   // Build graph edges from head_ref/base_ref
-  const { layout, standalones, arrows, svgW, svgH } = useMemo(() => {
+  const { layout, standalones, arrows, stackLabels, svgW, svgH } = useMemo(() => {
     // Map head_ref -> PR (a PR's head_ref is its branch name)
     const headRefToPr = new Map<string, PRSummary>();
     for (const pr of prs) {
@@ -86,12 +98,38 @@ export function DependencyGraph({ prs, stacks, highlightStackId, dimReviewerLogi
       }
     }
 
+    // Build root PR id -> Stack lookup
+    const rootToStack = new Map<number, Stack>();
+    for (const stack of stacks) {
+      if (stack.root_pr_id != null) {
+        rootToStack.set(stack.root_pr_id, stack);
+      }
+    }
+
     // Tree layout: column = depth, row = vertical position.
     // Siblings stack vertically; parent centered among children.
     const positions: CardPos[] = [];
+    const labels: StackLabel[] = [];
     let globalRow = 0; // next available row across all trees
 
     for (const root of roots) {
+      // Track the Y offset for this tree's label
+      const treeTopY = PAD + globalRow * (CARD_H + GAP_Y);
+
+      // Match root to its stack for the label
+      const stack = rootToStack.get(root.id);
+      if (stack) {
+        labels.push({
+          stackId: stack.id,
+          name: stack.name || `#${stack.id}`,
+          x: PAD,
+          y: treeTopY,
+        });
+      }
+
+      // Label offset pushes cards down within this tree
+      const labelOffset = stack ? LABEL_H : 0;
+
       // Recursive function: returns the row span [startRow, endRow] used
       function layoutNode(pr: PRSummary, depth: number, startRow: number): number {
         const kids = children.get(pr.id) || [];
@@ -99,7 +137,7 @@ export function DependencyGraph({ prs, stacks, highlightStackId, dimReviewerLogi
           // Leaf node
           positions.push({
             x: PAD + depth * (CARD_W + GAP_X),
-            y: PAD + startRow * (CARD_H + GAP_Y),
+            y: PAD + startRow * (CARD_H + GAP_Y) + labelOffset,
             pr,
           });
           return startRow; // occupied one row
@@ -118,7 +156,7 @@ export function DependencyGraph({ prs, stacks, highlightStackId, dimReviewerLogi
         const parentRow = (childRows[0] + childRows[childRows.length - 1]) / 2;
         positions.push({
           x: PAD + depth * (CARD_W + GAP_X),
-          y: PAD + parentRow * (CARD_H + GAP_Y),
+          y: PAD + parentRow * (CARD_H + GAP_Y) + labelOffset,
           pr,
         });
 
@@ -185,10 +223,11 @@ export function DependencyGraph({ prs, stacks, highlightStackId, dimReviewerLogi
       layout: positions,
       standalones: standalone,
       arrows: arrowList,
+      stackLabels: labels,
       svgW: maxX + PAD,
       svgH: maxY + PAD,
     };
-  }, [prs, highlightedPrIds]);
+  }, [prs, stacks, highlightedPrIds]);
 
   const isDimmed = useCallback((pr: PRSummary) => {
     if (highlightedPrIds != null && !highlightedPrIds.has(pr.id)) return true;
@@ -296,6 +335,55 @@ export function DependencyGraph({ prs, stacks, highlightStackId, dimReviewerLogi
               />
             ))}
           </svg>
+
+          {stackLabels.map((label) => (
+            <div
+              key={`stack-label-${label.stackId}`}
+              className={styles.stackLabel}
+              style={{ left: label.x, top: label.y - LABEL_H }}
+            >
+              {editingStackId === label.stackId ? (
+                <input
+                  className={styles.stackLabelInput}
+                  value={editValue}
+                  size={Math.max(editValue.length + 1, 4)}
+                  onChange={(e) => setEditValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && editValue.trim()) {
+                      onRenameStack?.(label.stackId, editValue.trim());
+                      setEditingStackId(null);
+                    } else if (e.key === 'Escape') {
+                      setEditingStackId(null);
+                    }
+                  }}
+                  onBlur={() => {
+                    if (editValue.trim()) {
+                      onRenameStack?.(label.stackId, editValue.trim());
+                    }
+                    setEditingStackId(null);
+                  }}
+                  autoFocus
+                />
+              ) : (
+                <Tooltip text="Click to rename this stack" position="top">
+                  <span
+                    className={styles.stackLabelText}
+                    onClick={() => {
+                      if (onRenameStack) {
+                        setEditValue(label.name);
+                        setEditingStackId(label.stackId);
+                      }
+                    }}
+                  >
+                    {label.name}
+                    <svg className={styles.stackLabelEditIcon} viewBox="0 0 16 16" fill="currentColor">
+                      <path d="M11.013 1.427a1.75 1.75 0 012.474 0l1.086 1.086a1.75 1.75 0 010 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 01-.927-.928l.929-3.25a1.75 1.75 0 01.445-.758l8.61-8.61zm1.414 1.06a.25.25 0 00-.354 0L3.463 11.098a.25.25 0 00-.064.108l-.631 2.208 2.208-.63a.25.25 0 00.108-.064l8.61-8.61a.25.25 0 000-.355l-1.086-1.086z"/>
+                    </svg>
+                  </span>
+                </Tooltip>
+              )}
+            </div>
+          ))}
 
           {layout.map((pos) => {
             const isSelected = selectedPrId === pos.pr.id;

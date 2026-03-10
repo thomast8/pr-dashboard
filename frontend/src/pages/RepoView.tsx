@@ -501,7 +501,7 @@ export function RepoView() {
                     onClick={() => setStackDropdownOpen(!stackDropdownOpen)}
                   >
                     {icons.stack}
-                    <span>{stackFilter ? ((stacks || []).find((s) => s.id === stackFilter)?.name || `Stack #${stackFilter}`) : 'All PRs'}</span>
+                    <span>{stackFilter ? ((stacks || []).find((s) => s.id === stackFilter)?.name || `#${stackFilter}`) : 'All stacks'}</span>
                     <span className={styles.filterChevron}>{stackDropdownOpen ? '\u25B4' : '\u25BE'}</span>
                   </button>
                   {stackDropdownOpen && (
@@ -518,7 +518,7 @@ export function RepoView() {
                           className={`${styles.filterMenuItem} ${stackFilter === s.id ? styles.filterMenuItemActive : ''}`}
                           onClick={() => { setStackFilter(s.id); setStackDropdownOpen(false); }}
                         >
-                          <span>{s.name || `Stack #${s.id}`} ({s.members.length} PRs)</span>
+                          <span>{s.name || `#${s.id}`} ({s.members.length} PRs)</span>
                         </div>
                       ))}
                     </div>
@@ -567,6 +567,7 @@ export function RepoView() {
             dimAuthor={authorFilter || null}
             selectedPrId={selectedPrId}
             onSelectPr={selectPr}
+            onRenameStack={(stackId, name) => renameMutation.mutate({ stackId, name })}
             nameMap={authorInfoMap}
           />
         )}
