@@ -1,8 +1,8 @@
 /** Prioritize view — cross-repo ranked list of open PRs by priority score. */
 
 import { useQuery } from '@tanstack/react-query';
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
-import { api, type PrioritizedPR, type PriorityBreakdown, type PriorityMode, type RepoSummary, type User } from '../api/client';
+import { Fragment, useEffect, useRef, useState } from 'react';
+import { api, type PrioritizedPR, type PriorityBreakdown, type PriorityMode, type RepoSummary } from '../api/client';
 import { useCurrentUser } from '../App';
 import { PRDetailPanel } from '../components/PRDetailPanel';
 import { Tooltip } from '../components/Tooltip';
