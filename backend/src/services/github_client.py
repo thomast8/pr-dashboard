@@ -6,6 +6,21 @@ from typing import Any
 import httpx
 
 
+class GitHubAuthError(httpx.HTTPStatusError):
+    """Raised when GitHub returns 401/403 (bad token, insufficient permissions, etc.)."""
+
+
+def _raise_for_status(resp: httpx.Response) -> None:
+    """Like resp.raise_for_status() but raises GitHubAuthError for 401/403."""
+    if resp.status_code in (401, 403):
+        raise GitHubAuthError(
+            f"GitHub auth error {resp.status_code} for {resp.request.url}",
+            request=resp.request,
+            response=resp,
+        )
+    resp.raise_for_status()
+
+
 class GitHubClient:
     """Thin async wrapper around the GitHub REST API."""
 
@@ -32,7 +47,7 @@ class GitHubClient:
     async def _get(self, path: str, params: dict[str, Any] | None = None) -> Any:
         client = await self._ensure_client()
         resp = await client.get(path, params=params)
-        resp.raise_for_status()
+        _raise_for_status(resp)
         return resp.json()
 
     async def _get_paginated(
@@ -47,7 +62,7 @@ class GitHubClient:
         url: str | None = path
         while url:
             resp = await client.get(url, params=params if url == path else None)
-            resp.raise_for_status()
+            _raise_for_status(resp)
             results.extend(resp.json())
             # Follow Link: <...>; rel="next"
             link = resp.headers.get("link", "")
@@ -61,19 +76,19 @@ class GitHubClient:
     async def _patch(self, path: str, json: dict[str, Any] | None = None) -> Any:
         client = await self._ensure_client()
         resp = await client.patch(path, json=json)
-        resp.raise_for_status()
+        _raise_for_status(resp)
         return resp.json()
 
     async def _post_json(self, path: str, json: dict[str, Any] | None = None) -> Any:
         client = await self._ensure_client()
         resp = await client.post(path, json=json)
-        resp.raise_for_status()
+        _raise_for_status(resp)
         return resp.json()
 
     async def _delete_json(self, path: str, json: dict[str, Any] | None = None) -> Any:
         client = await self._ensure_client()
         resp = await client.request("DELETE", path, json=json)
-        resp.raise_for_status()
+        _raise_for_status(resp)
         return resp.json()
 
     # ── Public API ──────────────────────────────────────────────
@@ -110,7 +125,7 @@ class GitHubClient:
         url: str | None = f"/repos/{owner}/{repo}/pulls"
         while url:
             resp = await client.get(url, params=params if url.startswith("/") else None)
-            resp.raise_for_status()
+            _raise_for_status(resp)
             page: list[dict[str, Any]] = resp.json()
             if not page:
                 break
@@ -257,7 +272,7 @@ class GitHubClient:
         resp = await client.delete(f"/repos/{owner}/{repo}/issues/{issue_number}/labels/{label}")
         # 404 means the label wasn't present — that's fine
         if resp.status_code != 404:
-            resp.raise_for_status()
+            _raise_for_status(resp)
 
 
 def parse_gh_datetime(value: str | None) -> datetime | None:

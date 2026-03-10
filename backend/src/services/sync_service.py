@@ -21,7 +21,7 @@ from src.models.tables import (
 )
 from src.services.crypto import decrypt_token
 from src.services.events import broadcast_event
-from src.services.github_client import GitHubClient, parse_gh_datetime
+from src.services.github_client import GitHubAuthError, GitHubClient, parse_gh_datetime
 from src.services.stack_detector import detect_stacks
 
 
@@ -58,10 +58,10 @@ class SyncService:
                 logger.exception("Sync cycle failed")
             await asyncio.sleep(self.interval)
 
-    async def _resolve_client_for_repo(
+    async def _resolve_clients_for_repo(
         self, session: AsyncSession, repo_id: int
-    ) -> GitHubClient | None:
-        """Try each tracker's space token for a repo, return first available client."""
+    ) -> list[GitHubClient]:
+        """Return all candidate GitHub clients for a repo (one per tracker with a valid token)."""
         trackers = (
             (
                 await session.execute(
@@ -74,15 +74,15 @@ class SyncService:
             .all()
         )
 
+        clients: list[GitHubClient] = []
         for tracker in trackers:
             if tracker.space and tracker.space.is_active and tracker.space.github_account:
                 account = tracker.space.github_account
                 if account.encrypted_token and account.is_active:
                     token = decrypt_token(account.encrypted_token)
                     if token:
-                        return GitHubClient(token=token, base_url=account.base_url)
-
-        return None
+                        clients.append(GitHubClient(token=token, base_url=account.base_url))
+        return clients
 
     async def sync_all(self) -> None:
         """Run one full sync cycle across all active tracked repos."""
@@ -94,26 +94,49 @@ class SyncService:
             )
 
         for repo in repos:
-            gh = None
+            clients: list[GitHubClient] = []
             try:
                 async with async_session_factory() as session:
-                    gh = await self._resolve_client_for_repo(session, repo.id)
+                    clients = await self._resolve_clients_for_repo(session, repo.id)
 
-                if not gh:
-                    # Fallback to global token
-                    from src.config.settings import settings
+                # Append global fallback token if available
+                from src.config.settings import settings
 
-                    if settings.github_token:
-                        gh = GitHubClient(token=settings.github_token)
-                    else:
-                        logger.warning(f"No token available for {repo.full_name}, skipping")
-                        continue
+                if settings.github_token:
+                    clients.append(GitHubClient(token=settings.github_token))
 
-                await self.sync_repo(repo.id, repo.owner, repo.name, gh)
+                if not clients:
+                    logger.warning(f"No token available for {repo.full_name}, skipping")
+                    continue
+
+                # Try each client; fall back on auth errors
+                synced = False
+                for i, gh in enumerate(clients):
+                    try:
+                        await self.sync_repo(repo.id, repo.owner, repo.name, gh)
+                        synced = True
+                        break
+                    except GitHubAuthError as exc:
+                        remaining = len(clients) - i - 1
+                        if remaining > 0:
+                            logger.warning(
+                                f"Token {i + 1}/{len(clients)} lacks access to "
+                                f"{repo.full_name} ({exc.response.status_code}), "
+                                f"trying next token"
+                            )
+                        else:
+                            logger.warning(
+                                f"All {len(clients)} token(s) failed for "
+                                f"{repo.full_name} ({exc.response.status_code}), skipping"
+                            )
+
+                if not synced:
+                    continue
+
             except Exception:
                 logger.exception(f"Failed to sync {repo.full_name}")
             finally:
-                if gh:
+                for gh in clients:
                     await gh.close()
 
     async def sync_repo(

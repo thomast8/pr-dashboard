@@ -1,6 +1,7 @@
 /** Slide-out right panel showing PR detail, checks, reviews, and requested reviewers. */
 
 import { useState, useRef, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, type PRDetail, type User, type Space } from '../api/client';
 import { StatusDot } from './StatusDot';
@@ -14,6 +15,7 @@ interface Props {
 }
 
 export function PRDetailPanel({ repoId, prNumber, onClose }: Props) {
+  const navigate = useNavigate();
   const qc = useQueryClient();
   const [addReviewerOpen, setAddReviewerOpen] = useState(false);
   const [reviewerSearch, setReviewerSearch] = useState('');
@@ -70,8 +72,9 @@ export function PRDetailPanel({ repoId, prNumber, onClose }: Props) {
     queryFn: api.listSpaces,
   });
 
+  const repo = repos?.find((r) => r.id === repoId);
+
   const repoSpaceSlug = (() => {
-    const repo = repos?.find((r) => r.id === repoId);
     if (!repo?.space_id || !spaces) return null;
     return spaces.find((s: Space) => s.id === repo.space_id)?.slug ?? null;
   })();
@@ -195,6 +198,19 @@ export function PRDetailPanel({ repoId, prNumber, onClose }: Props) {
                 <span className={styles.branchName}>{pr.base_ref}</span>
               </Tooltip>
             </div>
+            {repo && (
+              <button
+                className={styles.repoViewLink}
+                onClick={() => navigate(`/repos/${repo.owner}/${repo.name}`)}
+              >
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="2" y="2" width="12" height="12" rx="2" />
+                  <path d="M2 6h12" />
+                  <path d="M6 6v8" />
+                </svg>
+                See in repo view
+              </button>
+            )}
           </>
         ) : (
           <div className={styles.loading}>Loading...</div>
