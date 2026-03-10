@@ -133,14 +133,12 @@
 }
 
 .visibilityHidden {
-  background: var(--bg-elevated);
-  border-color: var(--border-default);
-  color: var(--text-dim);
-}
-.visibilityHidden:hover {
   background: var(--accent-green-bg);
   border-color: var(--accent-green);
   color: var(--accent-green);
+}
+.visibilityHidden:hover {
+  filter: brightness(1.2);
 }
 
 .spaceName {
@@ -159,7 +157,7 @@
 }
 
 .spaceInactive {
-  opacity: 0.5;
+  opacity: 1;
 }
 
 /* Action buttons */
@@ -347,8 +345,9 @@
 
 /* Link button variants */
 .linkBtnSecondary {
-  border-style: dotted;
-  opacity: 0.8;
+  border-style: solid;
+  border-color: var(--accent-blue);
+  opacity: 1;
   flex-direction: column;
   gap: 0.15rem;
 }
@@ -357,6 +356,47 @@
   font-size: 0.62rem;
   color: var(--text-dim);
   font-weight: normal;
+}
+
+/* Pulse glow animations for first-time UX */
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 4px rgba(74, 222, 128, 0.3); }
+  50% { box-shadow: 0 0 12px rgba(74, 222, 128, 0.6); }
+}
+
+@keyframes pulseGlowBlue {
+  0%, 100% { box-shadow: 0 0 4px rgba(97, 218, 251, 0.2); }
+  50% { box-shadow: 0 0 12px rgba(97, 218, 251, 0.5); }
+}
+
+.visibilityPulse {
+  animation: pulseGlow 2s ease-in-out infinite;
+}
+
+.linkBtnPulse {
+  animation: pulseGlowBlue 2s ease-in-out infinite;
+}
+
+.patHint {
+  font-size: 0.72rem;
+  color: var(--accent-blue);
+  background: rgba(97, 218, 251, 0.08);
+  border: 1px solid rgba(97, 218, 251, 0.25);
+  border-radius: var(--radius-md);
+  padding: 0.4rem 0.65rem;
+  text-align: center;
+}
+
+/* First-time hint banner */
+.firstTimeHint {
+  font-size: 0.75rem;
+  color: var(--accent-green);
+  background: var(--accent-green-bg);
+  border: 1px solid var(--accent-green);
+  border-radius: var(--radius-md);
+  padding: 0.5rem 0.75rem;
+  margin-top: 0.75rem;
+  text-align: center;
 }
 
 /* Empty state */

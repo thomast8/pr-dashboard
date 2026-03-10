@@ -57,6 +57,8 @@ export function SpaceManager({ onClose }: Props) {
     },
   });
 
+  const hasActiveSpace = spaces?.some((s) => s.is_active) ?? false;
+
   // Group spaces by account
   const spacesByAccount = new Map<number, Space[]>();
   const orphanSpaces: Space[] = [];
@@ -95,7 +97,7 @@ export function SpaceManager({ onClose }: Props) {
         <div className={styles.body}>
           <p className={styles.hint}>
             Each GitHub account you link is scanned for organizations and personal repos.
-            Mark a space as <strong>Shown</strong> to track its repositories on the dashboard.
+            Activate a space to track its repositories on the dashboard.
           </p>
 
           {accounts?.map((account) => (
@@ -111,6 +113,7 @@ export function SpaceManager({ onClose }: Props) {
                 }
               }}
               isDiscovering={discoverMutation.isPending}
+              showPulse={!hasActiveSpace}
             />
           ))}
 
@@ -124,6 +127,7 @@ export function SpaceManager({ onClose }: Props) {
                   key={space.id}
                   space={space}
                   onToggle={(active) => toggleMutation.mutate({ id: space.id, isActive: active })}
+                  showPulse={!hasActiveSpace}
                 />
               ))}
             </div>
@@ -132,6 +136,12 @@ export function SpaceManager({ onClose }: Props) {
           {(!accounts || accounts.length === 0) && !user && (
             <div className={styles.empty}>
               Sign in with GitHub to get started.
+            </div>
+          )}
+
+          {!hasActiveSpace && (spaces?.length ?? 0) > 0 && (
+            <div className={styles.firstTimeHint}>
+              Activate a space to start tracking its repos
             </div>
           )}
 
@@ -159,10 +169,17 @@ export function SpaceManager({ onClose }: Props) {
                 </button>
               )}
               {user && (
-                <button className={`${styles.linkBtn} ${styles.linkBtnSecondary}`} onClick={() => setShowTokenForm(true)}>
-                  + Link with Personal Access Token
-                  <span className={styles.linkBtnHint}>for GitHub Enterprise or fine-grained access</span>
-                </button>
+                <>
+                  {!hasActiveSpace && (
+                    <div className={styles.patHint}>
+                      Need access to a GitHub Enterprise instance or want fine-grained token control? Link a Personal Access Token below.
+                    </div>
+                  )}
+                  <button className={`${styles.linkBtn} ${styles.linkBtnSecondary} ${!hasActiveSpace ? styles.linkBtnPulse : ''}`} onClick={() => setShowTokenForm(true)}>
+                    + Link with Personal Access Token
+                    <span className={styles.linkBtnHint}>for GitHub Enterprise or fine-grained access</span>
+                  </button>
+                </>
               )}
             </div>
           )}
@@ -289,6 +306,7 @@ function AccountSection({
   onDiscover,
   onRemove,
   isDiscovering,
+  showPulse,
 }: {
   account: GitHubAccountInfo;
   spaces: Space[];
@@ -296,6 +314,7 @@ function AccountSection({
   onDiscover: () => void;
   onRemove: () => void;
   isDiscovering: boolean;
+  showPulse: boolean;
 }) {
   return (
     <div className={styles.accountSection}>
@@ -330,6 +349,7 @@ function AccountSection({
           key={space.id}
           space={space}
           onToggle={(active) => onToggleSpace(space.id, active)}
+          showPulse={showPulse}
         />
       ))}
     </div>
@@ -339,19 +359,22 @@ function AccountSection({
 function SpaceRow({
   space,
   onToggle,
+  showPulse,
 }: {
   space: Space;
   onToggle: (active: boolean) => void;
+  showPulse: boolean;
 }) {
+  const pulseClass = !space.is_active && showPulse ? styles.visibilityPulse : '';
   return (
     <div className={`${styles.spaceRow} ${!space.is_active ? styles.spaceInactive : ''}`}>
       <span className={styles.spaceName}>{space.name}</span>
       <span className={styles.spaceType}>{space.space_type}</span>
       <button
-        className={`${styles.visibilityBtn} ${space.is_active ? styles.visibilityShown : styles.visibilityHidden}`}
+        className={`${styles.visibilityBtn} ${space.is_active ? styles.visibilityShown : styles.visibilityHidden} ${pulseClass}`}
         onClick={() => onToggle(!space.is_active)}
       >
-        {space.is_active ? 'Shown' : 'Hidden'}
+        {space.is_active ? 'Active' : 'Activate'}
       </button>
     </div>
   );
