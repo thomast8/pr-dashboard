@@ -122,12 +122,6 @@
   overflow: hidden;
 }
 
-.userMenuInfo {
-  padding: 0.6rem 0.75rem;
-  font-size: 0.8rem;
-  color: var(--text-muted);
-}
-
 .userMenuSection {
   padding: 0.25rem 0;
 }

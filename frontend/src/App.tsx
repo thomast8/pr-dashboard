@@ -99,7 +99,7 @@ export default function App() {
           window.history.replaceState({}, '', window.location.pathname);
         } else if (params.get('linked_existing') === 'true' && data.user) {
           setBanner({
-            message: `This GitHub identity was already linked to your account. Signed in as ${data.user.name || data.user.login}.`,
+            message: `This GitHub identity was already linked to your account.`,
             type: 'info',
           });
           window.history.replaceState({}, '', window.location.pathname);

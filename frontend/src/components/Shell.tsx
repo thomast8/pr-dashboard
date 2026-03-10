@@ -111,10 +111,6 @@ export function Shell() {
               </button>
               {showUserMenu && (
                 <div className={styles.userMenu}>
-                  <div className={styles.userMenuInfo}>
-                    Signed in as <strong>{user.login}</strong>
-                  </div>
-
                   {accounts && accounts.length > 0 && (
                     <div className={styles.userMenuSection}>
                       <div className={styles.userMenuSectionLabel}>Linked accounts</div>
