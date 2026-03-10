@@ -23,7 +23,7 @@ export function Shell() {
   const [showSpaces, setShowSpaces] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
-  const { user, setUser, oauthConfigured } = useCurrentUser();
+  const { user, setUser, oauthConfigured, banner, setBanner } = useCurrentUser();
 
   // Close user menu on outside click
   useEffect(() => {
@@ -180,6 +180,12 @@ export function Shell() {
           ) : null}
         </div>
       </header>
+      {banner && (
+        <div className={styles.banner}>
+          <span>{banner}</span>
+          <button className={styles.bannerDismiss} onClick={() => setBanner(null)}>&times;</button>
+        </div>
+      )}
       <main className={styles.main}>
         <Outlet />
       </main>

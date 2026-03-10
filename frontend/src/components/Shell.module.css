@@ -1,6 +1,6 @@
 .shell {
   display: grid;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: auto auto 1fr;
   min-height: 100vh;
 }
 
@@ -221,6 +221,38 @@
 }
 .githubBtn:hover {
   background: #32383f;
+}
+
+.banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.8rem;
+  color: var(--text-primary);
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border-default);
+  animation: bannerFadeIn 0.3s ease;
+}
+
+.bannerDismiss {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0 0.25rem;
+  margin-left: 0.5rem;
+}
+.bannerDismiss:hover {
+  color: var(--text-primary);
+}
+
+@keyframes bannerFadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .main {

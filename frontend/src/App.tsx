@@ -30,12 +30,16 @@ interface UserContextValue {
   user: GitHubUser | null;
   setUser: (u: GitHubUser | null) => void;
   oauthConfigured: boolean;
+  banner: string | null;
+  setBanner: (b: string | null) => void;
 }
 
 export const UserContext = createContext<UserContextValue>({
   user: null,
   setUser: () => {},
   oauthConfigured: false,
+  banner: null,
+  setBanner: () => {},
 });
 
 export function useCurrentUser() {
@@ -48,6 +52,7 @@ export default function App() {
   const [authEnabled, setAuthEnabled] = useState(true);
   const [user, setUser] = useState<GitHubUser | null>(null);
   const [oauthConfigured, setOauthConfigured] = useState(false);
+  const [banner, setBanner] = useState<string | null>(null);
 
   const [toast, setToast] = useState<string | null>(null);
 
@@ -68,6 +73,16 @@ export default function App() {
         setOauthConfigured(data.oauth_configured ?? false);
         if (data.user) setUser(data.user);
         setAuthChecked(true);
+
+        // Show banner when OAuth linked to an existing account
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('linked_existing') === 'true' && data.user) {
+          setBanner(
+            `This GitHub identity was already linked to your account. Signed in as ${data.user.name || data.user.login}.`,
+          );
+          window.history.replaceState({}, '', window.location.pathname);
+          setTimeout(() => setBanner(null), 8000);
+        }
       })
       .catch(() => setAuthChecked(true));
   }, []);
@@ -87,7 +102,7 @@ export default function App() {
   }
 
   return (
-    <UserContext.Provider value={{ user, setUser, oauthConfigured }}>
+    <UserContext.Provider value={{ user, setUser, oauthConfigured, banner, setBanner }}>
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
           <Routes>

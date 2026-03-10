@@ -294,11 +294,16 @@ async def github_oauth_callback(code: str, state: str, request: Request) -> Redi
     from datetime import UTC, datetime
 
     encrypted = encrypt_token(access_token)
+    linked_to_existing = False
 
     async with async_session_factory() as session:
         # In link mode, attach to the currently signed-in user
         # In sign-in mode, create/find user from GitHub identity
-        existing_user_id = get_github_user_id(request) if link_mode else None
+        # Auto-upgrade to link mode if user already has a session cookie
+        existing_user_id = get_github_user_id(request)
+        if existing_user_id and not link_mode:
+            link_mode = True
+            logger.info(f"Auto-linking: user {existing_user_id} already authenticated")
 
         if existing_user_id and link_mode:
             # Link mode: add this GitHub account to the existing user
@@ -309,6 +314,20 @@ async def github_oauth_callback(code: str, state: str, request: Request) -> Redi
             # Sign-in mode: find/create user from GitHub identity
             result = await session.execute(select(User).where(User.github_id == gh_user["id"]))
             user = result.scalar_one_or_none()
+
+            if user is None:
+                # Check if this GitHub identity is already linked as a GitHubAccount
+                result = await session.execute(
+                    select(GitHubAccount).where(GitHubAccount.github_id == gh_user["id"])
+                )
+                existing_account = result.scalars().first()
+                if existing_account:
+                    user = await session.get(User, existing_account.user_id)
+                    linked_to_existing = True
+                    logger.info(
+                        f"OAuth identity {gh_user['login']} already linked to user {user.id}, "
+                        f"signing in as existing user"
+                    )
 
             if user is None:
                 user = User(
@@ -367,7 +386,8 @@ async def github_oauth_callback(code: str, state: str, request: Request) -> Redi
     cookie_payload = f"{user_id}:{expires}"
     token = _sign(cookie_payload)
 
-    redirect_url = f"{settings.frontend_url}/" if settings.frontend_url else "/"
+    redirect_base = f"{settings.frontend_url}/" if settings.frontend_url else "/"
+    redirect_url = f"{redirect_base}?linked_existing=true" if linked_to_existing else redirect_base
     is_https = not settings.frontend_url or settings.frontend_url.startswith("https")
     response = RedirectResponse(url=redirect_url)
     response.set_cookie(
