@@ -55,7 +55,9 @@ class User(Base):
         DateTime(timezone=True), server_default=func.now()
     )
 
-    github_accounts: Mapped[list["GitHubAccount"]] = relationship(back_populates="user")
+    github_accounts: Mapped[list["GitHubAccount"]] = relationship(
+        back_populates="user", passive_deletes=True
+    )
 
 
 class GitHubAccount(Base):

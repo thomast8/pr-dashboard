@@ -306,6 +306,7 @@ export const api = {
     }),
   authStatus: () => request<AuthStatus>('/api/auth/me'),
   logout: () => request('/api/auth/logout', { method: 'POST' }),
+  deleteMyAccount: () => request('/api/auth/me', { method: 'DELETE' }),
   getGitHubUser: () => request<GitHubUser | null>('/api/auth/user'),
   disconnectGitHub: () =>
     request('/api/auth/github/disconnect', { method: 'POST' }),

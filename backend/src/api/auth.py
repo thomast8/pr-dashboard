@@ -38,9 +38,12 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 # Paths that don't require authentication
 PUBLIC_PATHS = {
     "/api/auth/login",
-    "/api/auth/me",
     "/api/auth/github/callback",
     "/api/health",
+}
+# (path, method) pairs that are public only for specific HTTP methods
+PUBLIC_PATH_METHODS = {
+    ("/api/auth/me", "GET"),
 }
 PUBLIC_PREFIXES = ("/api/auth/dev-login/",)
 
@@ -53,6 +56,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if (
             path.startswith("/api/")
             and path not in PUBLIC_PATHS
+            and (path, request.method) not in PUBLIC_PATH_METHODS
             and not path.startswith(PUBLIC_PREFIXES)
             and not is_authenticated(request)
         ):
@@ -162,6 +166,28 @@ async def auth_status(request: Request) -> AuthStatus:
         oauth_configured=bool(settings.github_oauth_client_id),
         user=user_info,
     )
+
+
+@router.delete("/me")
+async def delete_my_account(request: Request, response: Response):
+    """Delete the current user's account.
+
+    Cascades to GitHubAccount and RepoTracker; SET NULLs PR assignee refs.
+    """
+    user_id = get_github_user_id(request)
+    if not user_id:
+        return JSONResponse(status_code=401, content={"detail": "Not authenticated"})
+
+    async with async_session_factory() as session:
+        user = await session.get(User, user_id)
+        if not user:
+            return JSONResponse(status_code=404, content={"detail": "User not found"})
+        await session.delete(user)
+        await session.commit()
+
+    response.delete_cookie(GITHUB_COOKIE, path="/")
+    response.delete_cookie(COOKIE_NAME, path="/")
+    return {"status": "deleted"}
 
 
 @router.post("/logout")

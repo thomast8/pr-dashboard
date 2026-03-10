@@ -155,6 +155,18 @@ export function Shell() {
                   >
                     Sign out
                   </button>
+                  <button
+                    className={`${styles.userMenuItem} ${styles.userMenuItemDanger}`}
+                    onClick={async () => {
+                      if (!window.confirm('Delete your account? This removes your spaces, tracked repos, and linked GitHub accounts. This cannot be undone.')) return;
+                      await api.deleteMyAccount();
+                      setUser(null);
+                      setShowUserMenu(false);
+                      qc.invalidateQueries();
+                    }}
+                  >
+                    Delete my account
+                  </button>
                 </div>
               )}
             </div>
