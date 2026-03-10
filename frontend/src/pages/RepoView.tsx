@@ -125,24 +125,6 @@ export function RepoView() {
     queryFn: api.listSpaces,
   });
 
-  // Resolve the repo's space slug for linked account lookups
-  const repoSpaceSlug = (() => {
-    if (!repo?.space_id || !spaces) return null;
-    return spaces.find((s: Space) => s.id === repo.space_id)?.slug ?? null;
-  })();
-
-  // Resolve a team member's display info for the current repo's space.
-  // If they have a linked account for this space, prefer that identity.
-  const resolveUser = (user: User): { login: string; avatar: string | null } => {
-    if (repoSpaceSlug) {
-      const match = user.linked_accounts.find((a) =>
-        a.space_slugs.includes(repoSpaceSlug),
-      );
-      if (match) return { login: match.login, avatar: match.avatar_url };
-    }
-    return { login: user.login, avatar: user.avatar_url };
-  };
-
   const renameMutation = useMutation({
     mutationFn: ({ stackId, name }: { stackId: number; name: string }) =>
       api.renameStack(repo!.id, stackId, name),
