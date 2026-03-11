@@ -55,7 +55,6 @@
   align-items: center;
   gap: 0.4rem;
   white-space: nowrap;
-  min-width: 110px;
 }
 .filterTrigger:hover { border-color: var(--accent-blue); }
 
