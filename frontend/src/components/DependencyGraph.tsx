@@ -65,6 +65,14 @@ const REVIEW_TOOLTIPS: Record<string, string> = {
   none: 'No reviews yet',
 };
 
+const MERGEABLE_TOOLTIPS: Record<string, string> = {
+  clean: 'No merge conflicts',
+  dirty: 'Has merge conflicts',
+  blocked: 'Blocked from merging',
+  unstable: 'Mergeable but CI failing',
+  unknown: 'Merge status unknown',
+};
+
 /** Compute priority score (0-100) matching backend compute_priority_score logic. */
 function standalonePriorityScore(pr: PRSummary): number {
   // Review readiness (max 35)
@@ -335,12 +343,29 @@ export function DependencyGraph({ prs, stacks, highlightStackId, dimReviewerLogi
     return false;
   }, [highlightedPrIds, dimReviewerLogin, dimAuthor, dimBranchTarget]);
 
-  function reviewBorderClass(pr: PRSummary): string {
+  function readinessBorderClass(pr: PRSummary): string {
     if (pr.merged_at) return styles.borderMerged;
-    if (pr.review_state === 'approved' && !pr.rebased_since_approval) return styles.borderApproved;
-    if (pr.review_state === 'approved' && pr.rebased_since_approval) return styles.borderRebased;
+
+    const hasConflicts = pr.mergeable_state === 'dirty' || pr.mergeable_state === 'blocked';
+    const ciFailing = pr.ci_status === 'failure' || pr.ci_status === 'action_required';
+
+    // Conflicts or CI failure override everything
+    if (hasConflicts) return styles.borderChanges;
+    if (ciFailing) return styles.borderChanges;
+
     if (pr.review_state === 'changes_requested') return styles.borderChanges;
     if (pr.review_state === 'mixed') return styles.borderMixed;
+
+    if (pr.review_state === 'approved') {
+      if (pr.rebased_since_approval) return styles.borderRebased;
+      // Approved but CI pending or mergeable unknown: amber
+      const ciPending = pr.ci_status === 'pending';
+      const mergeUnknown = !pr.mergeable_state || pr.mergeable_state === 'unknown';
+      if (ciPending || mergeUnknown) return styles.borderRebased;
+      // Truly ready: approved + CI pass + clean merge
+      return styles.borderApproved;
+    }
+
     if (pr.review_state === 'reviewed') return styles.borderReviewed;
     return '';
   }
@@ -407,6 +432,9 @@ export function DependencyGraph({ prs, stacks, highlightStackId, dimReviewerLogi
           </Tooltip>
           <Tooltip text={REVIEW_TOOLTIPS[pr.review_state] || `Review: ${formatStatus(pr.review_state)}`} position="top">
             <StatusDot status={pr.review_state} size={7} />
+          </Tooltip>
+          <Tooltip text={MERGEABLE_TOOLTIPS[pr.mergeable_state ?? 'unknown'] || `Merge: ${formatStatus(pr.mergeable_state ?? 'unknown')}`} position="top">
+            <StatusDot status={pr.mergeable_state ?? 'unknown'} size={7} />
           </Tooltip>
           {pr.rebased_since_approval && (
             <Tooltip text="Rebased since approval — re-review may be needed" position="top">
@@ -505,7 +533,7 @@ export function DependencyGraph({ prs, stacks, highlightStackId, dimReviewerLogi
             return (
               <div
                 key={pos.pr.id}
-                className={`${styles.card} ${isSelected ? styles.cardSelected : ''} ${dimmed ? styles.cardDimmed : ''} ${reviewBorderClass(pos.pr)}`}
+                className={`${styles.card} ${isSelected ? styles.cardSelected : ''} ${dimmed ? styles.cardDimmed : ''} ${readinessBorderClass(pos.pr)}`}
                 style={{ left: pos.x, top: pos.y, width: CARD_W, height: CARD_H }}
                 data-pr-card
                 onClick={() => onSelectPr(isSelected ? null : pos.pr.number)}
@@ -529,7 +557,7 @@ export function DependencyGraph({ prs, stacks, highlightStackId, dimReviewerLogi
               return (
                 <div
                   key={pr.id}
-                  className={`${styles.standaloneCard} ${isSelected ? styles.cardSelected : ''} ${dimmed ? styles.cardDimmed : ''} ${reviewBorderClass(pr)}`}
+                  className={`${styles.standaloneCard} ${isSelected ? styles.cardSelected : ''} ${dimmed ? styles.cardDimmed : ''} ${readinessBorderClass(pr)}`}
                   data-pr-card
                   onClick={() => onSelectPr(isSelected ? null : pr.number)}
                 >

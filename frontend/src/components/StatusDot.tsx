@@ -20,6 +20,11 @@ const STATUS_COLORS: Record<string, string> = {
   mixed: 'var(--review-mixed)',
   reviewed: 'var(--review-commented)',
   commented_only: 'var(--accent-amber)',
+  // Mergeable state
+  clean: 'var(--ci-pass)',
+  dirty: 'var(--ci-fail)',
+  blocked: 'var(--ci-fail)',
+  unstable: 'var(--ci-pending)',
   unknown: 'var(--ci-neutral)',
   none: 'var(--ci-neutral)',
 };
