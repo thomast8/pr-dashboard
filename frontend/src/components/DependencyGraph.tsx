@@ -18,6 +18,7 @@ interface Props {
   highlightStackId: number | null;
   dimReviewerLogin: string | Set<string> | null;
   dimAuthor: string | Set<string> | null;
+  dimBranchTarget: string | null;
   selectedPrNumber: number | null;
   onSelectPr: (prNumber: number | null) => void;
   onRenameStack?: (stackId: number, name: string) => void;
@@ -100,7 +101,7 @@ function standalonePriorityScore(pr: PRSummary): number {
   return Math.max(0, reviewPts + ciPts + sizePts + mergeablePts + agePts + rebasePts + draftPenalty);
 }
 
-export function DependencyGraph({ prs, stacks, highlightStackId, dimReviewerLogin, dimAuthor, selectedPrNumber, onSelectPr, onRenameStack, nameMap }: Props) {
+export function DependencyGraph({ prs, stacks, highlightStackId, dimReviewerLogin, dimAuthor, dimBranchTarget, selectedPrNumber, onSelectPr, onRenameStack, nameMap }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [editingStackId, setEditingStackId] = useState<number | null>(null);
   const [editValue, setEditValue] = useState('');
@@ -328,8 +329,11 @@ export function DependencyGraph({ prs, stacks, highlightStackId, dimReviewerLogi
       const matches = dimAuthor instanceof Set ? dimAuthor.has(pr.author) : pr.author === dimAuthor;
       if (!matches) return true;
     }
+    if (dimBranchTarget != null) {
+      if (pr.base_ref !== 'main' && pr.base_ref !== 'master') return true;
+    }
     return false;
-  }, [highlightedPrIds, dimReviewerLogin, dimAuthor]);
+  }, [highlightedPrIds, dimReviewerLogin, dimAuthor, dimBranchTarget]);
 
   function reviewBorderClass(pr: PRSummary): string {
     if (pr.merged_at) return styles.borderMerged;

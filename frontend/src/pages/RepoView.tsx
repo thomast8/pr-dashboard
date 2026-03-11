@@ -32,6 +32,8 @@ export function RepoView() {
   const [reviewerDropdownOpen, setReviewerDropdownOpen] = useState(false);
   const [ciDropdownOpen, setCiDropdownOpen] = useState(false);
   const [priorityDropdownOpen, setPriorityDropdownOpen] = useState(false);
+  const [branchFilter, setBranchFilter] = useState('');
+  const [branchDropdownOpen, setBranchDropdownOpen] = useState(false);
   const [stackDropdownOpen, setStackDropdownOpen] = useState(false);
   const [repoDropdownOpen, setRepoDropdownOpen] = useState(false);
   const renameInputRef = useRef<HTMLInputElement>(null);
@@ -40,6 +42,7 @@ export function RepoView() {
   const reviewerDropdownRef = useRef<HTMLDivElement>(null);
   const ciDropdownRef = useRef<HTMLDivElement>(null);
   const priorityDropdownRef = useRef<HTMLDivElement>(null);
+  const branchDropdownRef = useRef<HTMLDivElement>(null);
   const stackDropdownRef = useRef<HTMLDivElement>(null);
   const repoDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -48,7 +51,7 @@ export function RepoView() {
     if (owner && name) setLastReposSectionPath(`/repos/${owner}/${name}`);
   }, [owner, name, setLastReposSectionPath]);
 
-  const hasActiveFilters = authorFilter !== '' || ciFilter !== '' || stackFilter !== null || reviewerFilter !== '' || priorityFilter !== '' || stateFilter !== 'open';
+  const hasActiveFilters = authorFilter !== '' || ciFilter !== '' || stackFilter !== null || reviewerFilter !== '' || priorityFilter !== '' || branchFilter !== '' || stateFilter !== 'open';
 
   const clearAllFilters = () => {
     setAuthorFilter('');
@@ -56,6 +59,7 @@ export function RepoView() {
     setStackFilter(null);
     setReviewerFilter('');
     setPriorityFilter('');
+    setBranchFilter('');
     setStateFilter('open');
   };
 
@@ -75,6 +79,9 @@ export function RepoView() {
       }
       if (priorityDropdownRef.current && !priorityDropdownRef.current.contains(e.target as Node)) {
         setPriorityDropdownOpen(false);
+      }
+      if (branchDropdownRef.current && !branchDropdownRef.current.contains(e.target as Node)) {
+        setBranchDropdownOpen(false);
       }
       if (stackDropdownRef.current && !stackDropdownRef.current.contains(e.target as Node)) {
         setStackDropdownOpen(false);
@@ -187,6 +194,11 @@ export function RepoView() {
   else if (stateFilter === 'mixed') filtered = filtered.filter((p: PRSummary) => p.state === 'open' && p.review_state === 'mixed');
   else if (stateFilter === 'draft') filtered = filtered.filter((p: PRSummary) => p.state === 'open' && p.draft);
   else if (stateFilter === 'merged') filtered = filtered.filter((p: PRSummary) => p.merged_at != null);
+  if (stateFilter === 'merged') {
+    filtered = [...filtered].sort((a, b) =>
+      new Date(b.merged_at!).getTime() - new Date(a.merged_at!).getTime()
+    );
+  }
 
   // Unique authors for filter dropdown
   const authors = [...new Set(pulls?.map((p: PRSummary) => p.author) || [])].sort();
@@ -251,6 +263,7 @@ export function RepoView() {
     author: <svg className={styles.filterIcon} viewBox="0 0 16 16" fill="currentColor"><path d="M8 8a3 3 0 100-6 3 3 0 000 6zm-5 7a5 5 0 0110 0H3z"/></svg>,
     reviewer: <svg className={styles.filterIcon} viewBox="0 0 16 16" fill="currentColor"><path d="M8 3C4.5 3 1.7 5.1.5 8c1.2 2.9 4 5 7.5 5s6.3-2.1 7.5-5c-1.2-2.9-4-5-7.5-5zm0 8a3 3 0 110-6 3 3 0 010 6zm0-5a2 2 0 100 4 2 2 0 000-4z"/></svg>,
     ci: <svg className={styles.filterIcon} viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 100 14A7 7 0 008 1zm3.5 5.3l-4 4a.75.75 0 01-1.06 0l-2-2a.75.75 0 111.06-1.06L7 8.74l3.47-3.47a.75.75 0 011.06 1.06z"/></svg>,
+    branch: <svg className={styles.filterIcon} viewBox="0 0 16 16" fill="currentColor"><path d="M11.75 2.5a.75.75 0 100 1.5.75.75 0 000-1.5zm-2.25.75a2.25 2.25 0 113 2.122V6.5a2.5 2.5 0 01-2.5 2.5H8.5v2.128a2.251 2.251 0 11-1.5 0V4.872a2.251 2.251 0 111.5 0V5.5H10a1 1 0 001-1v-1.128A2.251 2.251 0 019.5 3.25zM4.25 3.5a.75.75 0 100 1.5.75.75 0 000-1.5zM4.25 12a.75.75 0 100 1.5.75.75 0 000-1.5z" fill="none" stroke="currentColor" strokeWidth="1" /></svg>,
     priority: <svg className={styles.filterIcon} viewBox="0 0 16 16" fill="currentColor"><path d="M3 14V2l5 4 5-4v12l-5-4-5 4z"/></svg>,
     stack: <svg className={styles.filterIcon} viewBox="0 0 16 16" fill="currentColor"><path d="M8 1L1 5l7 4 7-4-7-4zM1 8l7 4 7-4M1 11l7 4 7-4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/></svg>,
   };
@@ -526,7 +539,37 @@ export function RepoView() {
             </div>
           </Tooltip>
 
-          {/* 5. Priority */}
+          {/* 5. Target branch */}
+          <Tooltip text="Filter PRs by target branch" position="bottom" disabled={branchDropdownOpen}>
+            <div className={styles.filterDropdown} ref={branchDropdownRef}>
+              <button
+                className={styles.filterTrigger}
+                onClick={() => setBranchDropdownOpen(!branchDropdownOpen)}
+              >
+                {icons.branch}
+                <span>{branchFilter === 'main' ? 'Targeting main' : 'All targets'}</span>
+                <span className={styles.filterChevron}>{branchDropdownOpen ? '\u25B4' : '\u25BE'}</span>
+              </button>
+              {branchDropdownOpen && (
+                <div className={styles.filterMenu}>
+                  <div
+                    className={`${styles.filterMenuItem} ${branchFilter === '' ? styles.filterMenuItemActive : ''}`}
+                    onClick={() => { setBranchFilter(''); setBranchDropdownOpen(false); }}
+                  >
+                    <span>All targets</span>
+                  </div>
+                  <div
+                    className={`${styles.filterMenuItem} ${branchFilter === 'main' ? styles.filterMenuItemActive : ''}`}
+                    onClick={() => { setBranchFilter('main'); setBranchDropdownOpen(false); }}
+                  >
+                    <span>Targeting main</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </Tooltip>
+
+          {/* 6. Priority */}
           <Tooltip text="Filter PRs by manual priority" position="bottom" disabled={priorityDropdownOpen}>
             <div className={styles.filterDropdown} ref={priorityDropdownRef}>
               <button
@@ -553,7 +596,7 @@ export function RepoView() {
             </div>
           </Tooltip>
 
-          {/* 6. Stack */}
+          {/* 7. Stack */}
           <Tooltip text="Highlight a stack of dependent PRs" position="bottom" disabled={stackDropdownOpen}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
               {renamingStack && stackFilter ? (
@@ -649,6 +692,7 @@ export function RepoView() {
             highlightStackId={stackFilter}
             dimReviewerLogin={reviewerFilter === '__me__' ? myLogins : reviewerFilter || null}
             dimAuthor={authorFilter === '__me__' ? myLogins : authorFilter || null}
+            dimBranchTarget={branchFilter || null}
             selectedPrNumber={selectedPrNumber}
             onSelectPr={selectPr}
             onRenameStack={(stackId, name) => renameMutation.mutate({ stackId, name })}
