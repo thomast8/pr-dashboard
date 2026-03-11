@@ -8,7 +8,7 @@ import { useCurrentUser } from '../App';
 import { DependencyGraph } from '../components/DependencyGraph';
 import { PRDetailPanel } from '../components/PRDetailPanel';
 import { Tooltip } from '../components/Tooltip';
-import { useStore } from '../store/useStore';
+import { useStore, DEFAULT_REPO_FILTERS } from '../store/useStore';
 import { repoColor } from '../utils/repoColors';
 import styles from './RepoView.module.css';
 
@@ -16,15 +16,16 @@ export function RepoView() {
   const { owner, name } = useParams<{ owner: string; name: string }>();
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { selectedPrNumber, selectPr, setLastReposSectionPath } = useStore();
+  const { selectedPrNumber, selectPr, setLastReposSectionPath, setRepoFilters, clearRepoFilters, toggleStackCollapsed } = useStore();
   const { user: currentUser } = useCurrentUser();
 
-  const [authorFilter, setAuthorFilter] = useState('');
-  const [ciFilter, setCiFilter] = useState('');
-  const [stackFilter, setStackFilter] = useState<number | null>(null);
-  const [reviewerFilter, setReviewerFilter] = useState('');
-  const [priorityFilter, setPriorityFilter] = useState('');
-  const [stateFilter, setStateFilter] = useState('open');
+  const repoKey = `${owner}/${name}`;
+  const filters = useStore((s) => s.repoFilters[repoKey] ?? DEFAULT_REPO_FILTERS);
+  const { stateFilter, authorFilter, reviewerFilter, ciFilter, branchFilter, priorityFilter, stackFilter, collapsedStacks } = filters;
+
+  const setFilter = <K extends keyof typeof filters>(key: K, value: (typeof filters)[K]) =>
+    setRepoFilters(repoKey, { [key]: value });
+
   const [renamingStack, setRenamingStack] = useState(false);
   const [renameValue, setRenameValue] = useState('');
   const [authorDropdownOpen, setAuthorDropdownOpen] = useState(false);
@@ -32,7 +33,6 @@ export function RepoView() {
   const [reviewerDropdownOpen, setReviewerDropdownOpen] = useState(false);
   const [ciDropdownOpen, setCiDropdownOpen] = useState(false);
   const [priorityDropdownOpen, setPriorityDropdownOpen] = useState(false);
-  const [branchFilter, setBranchFilter] = useState('');
   const [branchDropdownOpen, setBranchDropdownOpen] = useState(false);
   const [stackDropdownOpen, setStackDropdownOpen] = useState(false);
   const [repoDropdownOpen, setRepoDropdownOpen] = useState(false);
@@ -53,15 +53,7 @@ export function RepoView() {
 
   const hasActiveFilters = authorFilter !== '' || ciFilter !== '' || stackFilter !== null || reviewerFilter !== '' || priorityFilter !== '' || branchFilter !== '' || stateFilter !== 'open';
 
-  const clearAllFilters = () => {
-    setAuthorFilter('');
-    setCiFilter('');
-    setStackFilter(null);
-    setReviewerFilter('');
-    setPriorityFilter('');
-    setBranchFilter('');
-    setStateFilter('open');
-  };
+  const clearAllFilters = () => clearRepoFilters(repoKey);
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -367,7 +359,7 @@ export function RepoView() {
                     <div
                       key={o.value}
                       className={`${styles.filterMenuItem} ${stateFilter === o.value ? styles.filterMenuItemActive : ''}`}
-                      onClick={() => { setStateFilter(o.value); setStateDropdownOpen(false); }}
+                      onClick={() => { setFilter('stateFilter',o.value); setStateDropdownOpen(false); }}
                     >
                       <span>{o.label}</span>
                     </div>
@@ -411,14 +403,14 @@ export function RepoView() {
                 <div className={styles.filterMenu}>
                   <div
                     className={`${styles.filterMenuItem} ${!authorFilter ? styles.filterMenuItemActive : ''}`}
-                    onClick={() => { setAuthorFilter(''); setAuthorDropdownOpen(false); }}
+                    onClick={() => { setFilter('authorFilter',''); setAuthorDropdownOpen(false); }}
                   >
                     <span>All authors</span>
                   </div>
                   {currentUser && (
                     <div
                       className={`${styles.filterMenuItem} ${authorFilter === '__me__' ? styles.filterMenuItemActive : ''}`}
-                      onClick={() => { setAuthorFilter('__me__'); setAuthorDropdownOpen(false); }}
+                      onClick={() => { setFilter('authorFilter','__me__'); setAuthorDropdownOpen(false); }}
                     >
                       {currentUser.avatar_url && <img src={currentUser.avatar_url} alt="Me" className={styles.filterAvatar} />}
                       <span>Me</span>
@@ -430,7 +422,7 @@ export function RepoView() {
                       <div
                         key={a}
                         className={`${styles.filterMenuItem} ${authorFilter === a ? styles.filterMenuItemActive : ''}`}
-                        onClick={() => { setAuthorFilter(a); setAuthorDropdownOpen(false); }}
+                        onClick={() => { setFilter('authorFilter',a); setAuthorDropdownOpen(false); }}
                       >
                         {info?.avatar && <img src={info.avatar} alt={a} className={styles.filterAvatar} />}
                         <span>{info?.displayName || a}</span>
@@ -479,14 +471,14 @@ export function RepoView() {
                 <div className={styles.filterMenu}>
                   <div
                     className={`${styles.filterMenuItem} ${!reviewerFilter ? styles.filterMenuItemActive : ''}`}
-                    onClick={() => { setReviewerFilter(''); setReviewerDropdownOpen(false); }}
+                    onClick={() => { setFilter('reviewerFilter',''); setReviewerDropdownOpen(false); }}
                   >
                     <span>All reviewers</span>
                   </div>
                   {currentUser && (
                     <div
                       className={`${styles.filterMenuItem} ${reviewerFilter === '__me__' ? styles.filterMenuItemActive : ''}`}
-                      onClick={() => { setReviewerFilter('__me__'); setReviewerDropdownOpen(false); }}
+                      onClick={() => { setFilter('reviewerFilter','__me__'); setReviewerDropdownOpen(false); }}
                     >
                       {currentUser.avatar_url && <img src={currentUser.avatar_url} alt="Me" className={styles.filterAvatar} />}
                       <span>Me</span>
@@ -500,7 +492,7 @@ export function RepoView() {
                       <div
                         key={r.login}
                         className={`${styles.filterMenuItem} ${reviewerFilter === r.login ? styles.filterMenuItemActive : ''}`}
-                        onClick={() => { setReviewerFilter(r.login); setReviewerDropdownOpen(false); }}
+                        onClick={() => { setFilter('reviewerFilter',r.login); setReviewerDropdownOpen(false); }}
                       >
                         {avatar && <img src={avatar} alt={r.login} className={styles.filterAvatar} />}
                         <span>{displayName}</span>
@@ -529,7 +521,7 @@ export function RepoView() {
                     <div
                       key={o.value}
                       className={`${styles.filterMenuItem} ${ciFilter === o.value ? styles.filterMenuItemActive : ''}`}
-                      onClick={() => { setCiFilter(o.value); setCiDropdownOpen(false); }}
+                      onClick={() => { setFilter('ciFilter',o.value); setCiDropdownOpen(false); }}
                     >
                       <span>{o.label}</span>
                     </div>
@@ -554,13 +546,13 @@ export function RepoView() {
                 <div className={styles.filterMenu}>
                   <div
                     className={`${styles.filterMenuItem} ${branchFilter === '' ? styles.filterMenuItemActive : ''}`}
-                    onClick={() => { setBranchFilter(''); setBranchDropdownOpen(false); }}
+                    onClick={() => { setFilter('branchFilter',''); setBranchDropdownOpen(false); }}
                   >
                     <span>All targets</span>
                   </div>
                   <div
                     className={`${styles.filterMenuItem} ${branchFilter === 'main' ? styles.filterMenuItemActive : ''}`}
-                    onClick={() => { setBranchFilter('main'); setBranchDropdownOpen(false); }}
+                    onClick={() => { setFilter('branchFilter','main'); setBranchDropdownOpen(false); }}
                   >
                     <span>Targeting main</span>
                   </div>
@@ -586,7 +578,7 @@ export function RepoView() {
                     <div
                       key={o.value}
                       className={`${styles.filterMenuItem} ${priorityFilter === o.value ? styles.filterMenuItemActive : ''}`}
-                      onClick={() => { setPriorityFilter(o.value); setPriorityDropdownOpen(false); }}
+                      onClick={() => { setFilter('priorityFilter',o.value); setPriorityDropdownOpen(false); }}
                     >
                       <span>{o.label}</span>
                     </div>
@@ -635,7 +627,7 @@ export function RepoView() {
                     <div className={styles.filterMenu}>
                       <div
                         className={`${styles.filterMenuItem} ${stackFilter === null ? styles.filterMenuItemActive : ''}`}
-                        onClick={() => { setStackFilter(null); setStackDropdownOpen(false); }}
+                        onClick={() => { setFilter('stackFilter',null); setStackDropdownOpen(false); }}
                       >
                         <span>All PRs</span>
                       </div>
@@ -643,7 +635,7 @@ export function RepoView() {
                         <div
                           key={s.id}
                           className={`${styles.filterMenuItem} ${stackFilter === s.id ? styles.filterMenuItemActive : ''}`}
-                          onClick={() => { setStackFilter(s.id); setStackDropdownOpen(false); }}
+                          onClick={() => { setFilter('stackFilter',s.id); setStackDropdownOpen(false); }}
                         >
                           <span>{s.name || `#${s.id}`} ({s.members.length} PRs)</span>
                         </div>
@@ -697,6 +689,8 @@ export function RepoView() {
             onSelectPr={selectPr}
             onRenameStack={(stackId, name) => renameMutation.mutate({ stackId, name })}
             nameMap={authorInfoMap}
+            collapsedStacks={collapsedStacks}
+            onToggleStackCollapsed={(stackId) => toggleStackCollapsed(repoKey, stackId)}
           />
         )}
       </div>

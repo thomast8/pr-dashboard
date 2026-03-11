@@ -9,7 +9,6 @@ import { useMemo, useRef, useCallback, useState, useEffect } from 'react';
 import type { PRSummary, Stack } from '../api/client';
 import { StatusDot } from './StatusDot';
 import { Tooltip } from './Tooltip';
-import { useStore } from '../store/useStore';
 import styles from './DependencyGraph.module.css';
 
 interface Props {
@@ -23,6 +22,8 @@ interface Props {
   onSelectPr: (prNumber: number | null) => void;
   onRenameStack?: (stackId: number, name: string) => void;
   nameMap?: Map<string, { avatar: string | null; displayName: string }>;
+  collapsedStacks: Set<number>;
+  onToggleStackCollapsed: (stackId: number) => void;
 }
 
 const CARD_W = 210;
@@ -109,12 +110,10 @@ function standalonePriorityScore(pr: PRSummary): number {
   return Math.max(0, reviewPts + ciPts + sizePts + mergeablePts + agePts + rebasePts + draftPenalty);
 }
 
-export function DependencyGraph({ prs, stacks, highlightStackId, dimReviewerLogin, dimAuthor, dimBranchTarget, selectedPrNumber, onSelectPr, onRenameStack, nameMap }: Props) {
+export function DependencyGraph({ prs, stacks, highlightStackId, dimReviewerLogin, dimAuthor, dimBranchTarget, selectedPrNumber, onSelectPr, onRenameStack, nameMap, collapsedStacks, onToggleStackCollapsed }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [editingStackId, setEditingStackId] = useState<number | null>(null);
   const [editValue, setEditValue] = useState('');
-  const collapsedStacks = useStore((s) => s.collapsedStacks);
-  const toggleStackCollapsed = useStore((s) => s.toggleStackCollapsed);
   // Build highlighted PR set
   const highlightedPrIds = useMemo(() => {
     if (highlightStackId == null) return null;
@@ -491,7 +490,7 @@ export function DependencyGraph({ prs, stacks, highlightStackId, dimReviewerLogi
             >
               <span
                 className={`${styles.collapseToggle} ${collapsedStacks.has(label.stackId) ? styles.collapseToggleCollapsed : ''}`}
-                onClick={(e) => { e.stopPropagation(); toggleStackCollapsed(label.stackId); }}
+                onClick={(e) => { e.stopPropagation(); onToggleStackCollapsed(label.stackId); }}
               >
                 {'\u25BC'}
               </span>
