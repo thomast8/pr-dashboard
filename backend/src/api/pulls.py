@@ -121,8 +121,18 @@ def _rebased_since_approval(pr: PullRequest) -> bool:
     return newest_approval.commit_id is not None and newest_approval.commit_id != pr.head_sha
 
 
+def _is_bot_login(login: str) -> bool:
+    """Check if a login belongs to a bot (e.g. 'copilot', 'dependabot[bot]')."""
+    lower = login.lower()
+    return "[bot]" in lower or lower in {"copilot"}
+
+
 def _commenters_without_review(pr: PullRequest) -> list[str]:
-    """Return commenters who haven't submitted a formal review or been requested as reviewers."""
+    """Return commenters who haven't submitted a formal review or been requested as reviewers.
+
+    Bot commenters are excluded since they show through the formal reviews path
+    when they submit actual reviews, and aren't useful as comment-only entries.
+    """
     commenters = set(pr.commenters or [])
     if not commenters:
         return []
@@ -130,7 +140,8 @@ def _commenters_without_review(pr: PullRequest) -> list[str]:
     formal_reviewers = {r.reviewer for r in (pr.reviews or [])}
     # Requested reviewers
     requested = {r.get("login") for r in (pr.github_requested_reviewers or []) if r.get("login")}
-    return sorted(commenters - formal_reviewers - requested)
+    # Filter out bots - they show via formal reviews when relevant
+    return sorted(c for c in (commenters - formal_reviewers - requested) if not _is_bot_login(c))
 
 
 _REVIEWER_STATE_ORDER = {

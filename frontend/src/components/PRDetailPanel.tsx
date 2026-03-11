@@ -115,14 +115,29 @@ export function PRDetailPanel({ repoId, prNumber, onClose, showRepoLink = true }
     },
   });
 
+  // Friendly display names for known bots
+  const botDisplayNames: Record<string, string> = {
+    'copilot-pull-request-reviewer[bot]': 'Copilot',
+  };
+
   // Build unified reviewer list: merge requested reviewers + reviews
   const unifiedReviewers = useMemo(() => {
     if (!pr) return [];
     const map = new Map<string, {
       login: string;
+      avatar_url: string | null;
       state: string;
       stateLabel: string;
     }>();
+
+    // Build a login → avatar_url lookup from all_reviewers and requested reviewers
+    const prAvatars = new Map<string, string | null>();
+    for (const r of pr.all_reviewers || []) {
+      if (r.avatar_url) prAvatars.set(r.login, r.avatar_url);
+    }
+    for (const r of pr.github_requested_reviewers) {
+      if (r.avatar_url && !prAvatars.has(r.login)) prAvatars.set(r.login, r.avatar_url);
+    }
 
     // First pass: reviews sorted by submitted_at ascending (last write wins)
     const sorted = [...pr.reviews].sort(
@@ -137,20 +152,20 @@ export function PRDetailPanel({ repoId, prNumber, onClose, showRepoLink = true }
         state === 'approved' ? 'Approved'
         : state === 'changes_requested' ? 'Changes Requested'
         : 'Reviewed';
-      map.set(r.reviewer, { login: r.reviewer, state, stateLabel });
+      map.set(r.reviewer, { login: r.reviewer, avatar_url: prAvatars.get(r.reviewer) ?? null, state, stateLabel });
     }
 
     // Second pass: requested reviewers not yet in map are "pending"
     for (const r of pr.github_requested_reviewers) {
       if (!map.has(r.login)) {
-        map.set(r.login, { login: r.login, state: 'pending', stateLabel: 'Pending' });
+        map.set(r.login, { login: r.login, avatar_url: r.avatar_url, state: 'pending', stateLabel: 'Pending' });
       }
     }
 
     // Third pass: commenters without a formal review
     for (const login of pr.commenters_without_review || []) {
       if (!map.has(login)) {
-        map.set(login, { login, state: 'commented_only', stateLabel: '\u26A0 Commented (no review)' });
+        map.set(login, { login, avatar_url: prAvatars.get(login) ?? null, state: 'commented_only', stateLabel: '\u26A0 Commented (no review)' });
       }
     }
 
@@ -266,11 +281,13 @@ export function PRDetailPanel({ repoId, prNumber, onClose, showRepoLink = true }
             </Tooltip>
             {unifiedReviewers.length > 0 ? (
               <div className={styles.reviewList}>
-                {unifiedReviewers.map((r) => (
+                {unifiedReviewers.map((r) => {
+                  const avatarSrc = avatarMap.get(r.login) || r.avatar_url;
+                  return (
                   <div key={r.login} className={styles.reviewItem}>
-                    {avatarMap.get(r.login) ? (
+                    {avatarSrc ? (
                       <img
-                        src={avatarMap.get(r.login)}
+                        src={avatarSrc}
                         alt={r.login}
                         className={styles.ghReviewerAvatar}
                       />
@@ -278,7 +295,7 @@ export function PRDetailPanel({ repoId, prNumber, onClose, showRepoLink = true }
                       <span className={styles.ghReviewerAvatarPlaceholder} />
                     )}
                     <StatusDot status={r.state} size={7} />
-                    <span className={styles.reviewer}>{nameMap.get(r.login) || r.login}</span>
+                    <span className={styles.reviewer}>{botDisplayNames[r.login] || nameMap.get(r.login) || r.login}</span>
                     <Tooltip text={
                       r.state === 'approved' ? 'Approved this pull request'
                       : r.state === 'changes_requested' ? 'Requested changes to this pull request'
@@ -303,7 +320,8 @@ export function PRDetailPanel({ repoId, prNumber, onClose, showRepoLink = true }
                       x
                     </button>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <div className={styles.ghUnassigned}>No reviewers</div>
