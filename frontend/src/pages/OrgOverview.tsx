@@ -7,6 +7,7 @@ import { api, type RepoSummary, type Space, type AvailableRepo, type AvailableRe
 import { useCurrentUser } from '../App';
 import { GitHubIcon } from '../components/GitHubIcon';
 import { Tooltip } from '../components/Tooltip';
+import { repoColor } from '../utils/repoColors';
 import styles from './OrgOverview.module.css';
 
 function timeAgo(dateStr: string | null): string {
@@ -353,11 +354,18 @@ export function OrgOverview() {
             )}
           </div>
           <div className={styles.grid}>
-            {groupRepos.map((repo) => (
+            {groupRepos.map((repo) => {
+              const color = repoColor(repo.full_name);
+              return (
               <Link
                 key={repo.id}
                 to={`/repos/${repo.owner}/${repo.name}`}
                 className={styles.card}
+                style={{
+                  borderColor: `${color}40`,
+                  background: `${color}08`,
+                  '--card-hover-color': `${color}90`,
+                } as React.CSSProperties}
               >
                 <div className={styles.cardHeader}>
                   <Tooltip text={
@@ -371,7 +379,7 @@ export function OrgOverview() {
                       style={{ background: repo.last_synced_at ? healthColor(repo) : 'var(--text-dim)' }}
                     />
                   </Tooltip>
-                  <span className={styles.repoName}>{repo.full_name.split('/').pop()}</span>
+                  <span className={styles.repoName} style={{ color }}>{repo.full_name.split('/').pop()}</span>
                   {user && repo.user_id === user.id && (
                     <Tooltip text={`Click to make ${repo.visibility === 'private' ? 'shared' : 'private'}`} position="top">
                       <button
@@ -450,7 +458,8 @@ export function OrgOverview() {
                   </div>
                 )}
               </Link>
-            ))}
+              );
+            })}
 
             {groupRepos.length === 0 && space && (
               <button

@@ -503,6 +503,7 @@ export function DependencyGraph({ prs, stacks, highlightStackId, dimReviewerLogi
                 key={pos.pr.id}
                 className={`${styles.card} ${isSelected ? styles.cardSelected : ''} ${dimmed ? styles.cardDimmed : ''} ${reviewBorderClass(pos.pr)}`}
                 style={{ left: pos.x, top: pos.y, width: CARD_W, height: CARD_H }}
+                data-pr-card
                 onClick={() => onSelectPr(isSelected ? null : pos.pr.number)}
               >
                 {renderCard(pos.pr)}
@@ -525,6 +526,7 @@ export function DependencyGraph({ prs, stacks, highlightStackId, dimReviewerLogi
                 <div
                   key={pr.id}
                   className={`${styles.standaloneCard} ${isSelected ? styles.cardSelected : ''} ${dimmed ? styles.cardDimmed : ''} ${reviewBorderClass(pr)}`}
+                  data-pr-card
                   onClick={() => onSelectPr(isSelected ? null : pr.number)}
                 >
                   {renderCard(pr)}
