@@ -1,20 +1,53 @@
 """Async GitHub API client using httpx."""
 
+import asyncio
 from datetime import datetime
 from typing import Any
 
 import httpx
+from loguru import logger
+
+_MAX_RETRIES = 3
+_DEFAULT_RETRY_WAIT = 5  # seconds
 
 
 class GitHubAuthError(httpx.HTTPStatusError):
     """Raised when GitHub returns 401/403 (bad token, insufficient permissions, etc.)."""
 
 
+def _is_secondary_rate_limit(resp: httpx.Response) -> bool:
+    """Check if a 403 is GitHub's secondary (abuse) rate limit, not a real auth error."""
+    if resp.status_code != 403:
+        return False
+    if resp.headers.get("retry-after"):
+        return True
+    try:
+        body = resp.json()
+        msg = body.get("message", "").lower()
+        if "rate limit" in msg or "abuse" in msg:
+            return True
+    except Exception:
+        pass
+    return False
+
+
+def _retry_wait_seconds(resp: httpx.Response) -> float:
+    """Extract wait time from Retry-After header, or use default."""
+    raw = resp.headers.get("retry-after")
+    if raw:
+        try:
+            return max(float(raw), 1.0)
+        except ValueError:
+            pass
+    return _DEFAULT_RETRY_WAIT
+
+
 def _raise_for_status(resp: httpx.Response) -> None:
     """Like resp.raise_for_status() but raises GitHubAuthError for 401/403."""
     if resp.status_code in (401, 403):
+        body_preview = resp.text[:300] if resp.text else "(empty)"
         raise GitHubAuthError(
-            f"GitHub auth error {resp.status_code} for {resp.request.url}",
+            f"GitHub auth error {resp.status_code} for {resp.request.url}: {body_preview}",
             request=resp.request,
             response=resp,
         )
@@ -44,25 +77,69 @@ class GitHubClient:
         if self._client and not self._client.is_closed:
             await self._client.aclose()
 
-    async def _get(self, path: str, params: dict[str, Any] | None = None) -> Any:
+    async def _request_with_retry(
+        self,
+        method: str,
+        url: str,
+        *,
+        params: dict[str, Any] | None = None,
+        json: dict[str, Any] | None = None,
+        raise_for_status: bool = True,
+    ) -> httpx.Response:
+        """Send a request with automatic retry on secondary rate limits and 429s.
+
+        If raise_for_status is False, the raw response is returned without
+        checking the status code (caller is responsible for handling errors).
+        """
         client = await self._ensure_client()
-        resp = await client.get(path, params=params)
-        _raise_for_status(resp)
+        for attempt in range(_MAX_RETRIES):
+            kwargs: dict[str, Any] = {}
+            if params is not None:
+                kwargs["params"] = params
+            if json is not None:
+                kwargs["json"] = json
+
+            resp = await client.request(method, url, **kwargs)
+
+            if resp.status_code == 429 or (
+                resp.status_code == 403 and _is_secondary_rate_limit(resp)
+            ):
+                wait = _retry_wait_seconds(resp)
+                logger.warning(
+                    f"GitHub secondary rate limit hit ({resp.status_code}) for {url}, "
+                    f"retrying in {wait}s (attempt {attempt + 1}/{_MAX_RETRIES})"
+                )
+                if attempt < _MAX_RETRIES - 1:
+                    await asyncio.sleep(wait)
+                    continue
+                # Last attempt exhausted, fall through to raise
+
+            if raise_for_status:
+                _raise_for_status(resp)
+            return resp
+
+        # Should not reach here, but satisfy type checker
+        if raise_for_status:
+            _raise_for_status(resp)  # type: ignore[possibly-undefined]
+        return resp  # type: ignore[possibly-undefined]
+
+    async def _get(self, path: str, params: dict[str, Any] | None = None) -> Any:
+        resp = await self._request_with_retry("GET", path, params=params)
         return resp.json()
 
     async def _get_paginated(
         self, path: str, params: dict[str, Any] | None = None
     ) -> list[dict[str, Any]]:
         """Fetch all pages of a paginated GitHub API endpoint."""
-        client = await self._ensure_client()
         params = dict(params or {})
         params.setdefault("per_page", 100)
         results: list[dict[str, Any]] = []
 
         url: str | None = path
         while url:
-            resp = await client.get(url, params=params if url == path else None)
-            _raise_for_status(resp)
+            resp = await self._request_with_retry(
+                "GET", url, params=params if url == path else None
+            )
             results.extend(resp.json())
             # Follow Link: <...>; rel="next"
             link = resp.headers.get("link", "")
@@ -74,21 +151,15 @@ class GitHubClient:
         return results
 
     async def _patch(self, path: str, json: dict[str, Any] | None = None) -> Any:
-        client = await self._ensure_client()
-        resp = await client.patch(path, json=json)
-        _raise_for_status(resp)
+        resp = await self._request_with_retry("PATCH", path, json=json)
         return resp.json()
 
     async def _post_json(self, path: str, json: dict[str, Any] | None = None) -> Any:
-        client = await self._ensure_client()
-        resp = await client.post(path, json=json)
-        _raise_for_status(resp)
+        resp = await self._request_with_retry("POST", path, json=json)
         return resp.json()
 
     async def _delete_json(self, path: str, json: dict[str, Any] | None = None) -> Any:
-        client = await self._ensure_client()
-        resp = await client.request("DELETE", path, json=json)
-        _raise_for_status(resp)
+        resp = await self._request_with_retry("DELETE", path, json=json)
         return resp.json()
 
     # ── Public API ──────────────────────────────────────────────
@@ -113,7 +184,6 @@ class GitHubClient:
         ``state=closed`` sorted by ``updated`` descending and stop once we see
         a PR whose ``updated_at`` is older than the cutoff.
         """
-        client = await self._ensure_client()
         params: dict[str, Any] = {
             "state": "closed",
             "sort": "updated",
@@ -124,8 +194,9 @@ class GitHubClient:
 
         url: str | None = f"/repos/{owner}/{repo}/pulls"
         while url:
-            resp = await client.get(url, params=params if url.startswith("/") else None)
-            _raise_for_status(resp)
+            resp = await self._request_with_retry(
+                "GET", url, params=params if url.startswith("/") else None
+            )
             page: list[dict[str, Any]] = resp.json()
             if not page:
                 break
@@ -244,8 +315,9 @@ class GitHubClient:
         self, owner: str, repo: str, name: str, color: str, description: str = ""
     ) -> None:
         """Create a label if it doesn't exist, or update its color if it does."""
-        client = await self._ensure_client()
-        resp = await client.get(f"/repos/{owner}/{repo}/labels/{name}")
+        resp = await self._request_with_retry(
+            "GET", f"/repos/{owner}/{repo}/labels/{name}", raise_for_status=False
+        )
         if resp.status_code == 404:
             await self._post_json(
                 f"/repos/{owner}/{repo}/labels",
@@ -268,8 +340,11 @@ class GitHubClient:
 
     async def remove_label(self, owner: str, repo: str, issue_number: int, label: str) -> None:
         """Remove a single label from an issue/PR."""
-        client = await self._ensure_client()
-        resp = await client.delete(f"/repos/{owner}/{repo}/issues/{issue_number}/labels/{label}")
+        resp = await self._request_with_retry(
+            "DELETE",
+            f"/repos/{owner}/{repo}/issues/{issue_number}/labels/{label}",
+            raise_for_status=False,
+        )
         # 404 means the label wasn't present — that's fine
         if resp.status_code != 404:
             _raise_for_status(resp)

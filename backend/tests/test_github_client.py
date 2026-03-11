@@ -47,7 +47,9 @@ class TestGitHubClient:
         """Verify list_open_pulls calls the correct endpoint."""
         mock_resp = _mock_response(json_data=[{"number": 1, "title": "test"}])
 
-        with patch.object(httpx.AsyncClient, "get", new_callable=AsyncMock, return_value=mock_resp):
+        with patch.object(
+            httpx.AsyncClient, "request", new_callable=AsyncMock, return_value=mock_resp
+        ):
             client = GitHubClient(token="fake-token")
             pulls = await client.list_open_pulls("org", "repo")
             assert len(pulls) == 1
@@ -65,12 +67,12 @@ class TestGitHubClient:
 
         call_count = 0
 
-        async def mock_get(url, **kwargs):
+        async def mock_request(method, url, **kwargs):
             nonlocal call_count
             call_count += 1
             return page1_resp if call_count == 1 else page2_resp
 
-        with patch.object(httpx.AsyncClient, "get", side_effect=mock_get):
+        with patch.object(httpx.AsyncClient, "request", side_effect=mock_request):
             client = GitHubClient(token="fake-token")
             results = await client._get_paginated("/test")
             assert len(results) == 2
