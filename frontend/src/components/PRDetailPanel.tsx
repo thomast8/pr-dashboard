@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, type PRDetail, type User, type Space } from '../api/client';
+import { api, type PRDetail, type User, type Space, type WorkItemSearchResult } from '../api/client';
 import { StatusDot } from './StatusDot';
 import { Tooltip } from './Tooltip';
 import styles from './PRDetailPanel.module.css';
@@ -23,10 +23,22 @@ export function PRDetailPanel({ repoId, prNumber, onClose, showRepoLink = true }
   const addReviewerRef = useRef<HTMLDivElement>(null);
   const reviewerSearchRef = useRef<HTMLInputElement>(null);
 
+  // Work items state
+  const [addWorkItemOpen, setAddWorkItemOpen] = useState(false);
+  const [workItemSearch, setWorkItemSearch] = useState('');
+  const [workItemResults, setWorkItemResults] = useState<WorkItemSearchResult[]>([]);
+  const [workItemSearching, setWorkItemSearching] = useState(false);
+  const addWorkItemRef = useRef<HTMLDivElement>(null);
+  const workItemSearchRef = useRef<HTMLInputElement>(null);
+  const workItemDebounceRef = useRef<ReturnType<typeof setTimeout>>(null);
+
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (addReviewerRef.current && !addReviewerRef.current.contains(e.target as Node)) {
         setAddReviewerOpen(false);
+      }
+      if (addWorkItemRef.current && !addWorkItemRef.current.contains(e.target as Node)) {
+        setAddWorkItemOpen(false);
       }
     }
     document.addEventListener('mousedown', handleClick);
@@ -114,6 +126,48 @@ export function PRDetailPanel({ repoId, prNumber, onClose, showRepoLink = true }
       qc.invalidateQueries({ queryKey: ['prioritized'], refetchType: 'active' });
     },
   });
+
+  // ADO integration
+  const { data: adoStatus } = useQuery({
+    queryKey: ['ado-status'],
+    queryFn: api.getAdoStatus,
+    staleTime: 60_000,
+  });
+
+  const linkWorkItemMutation = useMutation({
+    mutationFn: (workItemId: number) =>
+      api.linkWorkItem(repoId, prNumber, workItemId),
+    onSuccess: invalidatePr,
+  });
+
+  const unlinkWorkItemMutation = useMutation({
+    mutationFn: (workItemId: number) =>
+      api.unlinkWorkItem(repoId, prNumber, workItemId),
+    onSuccess: invalidatePr,
+  });
+
+  // Debounced ADO search
+  useEffect(() => {
+    if (!workItemSearch.trim()) {
+      setWorkItemResults([]);
+      return;
+    }
+    if (workItemDebounceRef.current) clearTimeout(workItemDebounceRef.current);
+    workItemDebounceRef.current = setTimeout(async () => {
+      setWorkItemSearching(true);
+      try {
+        const results = await api.searchAdoWorkItems(workItemSearch.trim());
+        setWorkItemResults(results);
+      } catch {
+        setWorkItemResults([]);
+      } finally {
+        setWorkItemSearching(false);
+      }
+    }, 400);
+    return () => {
+      if (workItemDebounceRef.current) clearTimeout(workItemDebounceRef.current);
+    };
+  }, [workItemSearch]);
 
   // Build unified reviewer list: merge requested reviewers + reviews
   const unifiedReviewers = useMemo(() => {
@@ -360,6 +414,111 @@ export function PRDetailPanel({ repoId, prNumber, onClose, showRepoLink = true }
               )}
             </div>
           </section>
+
+          {/* Work Items (only if ADO configured) */}
+          {adoStatus?.configured && (
+            <section className={styles.section}>
+              <Tooltip text="Azure DevOps work items linked to this PR" position="right">
+                <h3>Work Items ({pr.work_items?.length || 0})</h3>
+              </Tooltip>
+              {(pr.work_items?.length || 0) > 0 ? (
+                <div className={styles.workItemList}>
+                  {pr.work_items.map((wi) => (
+                    <div key={wi.work_item_id} className={styles.workItemChip}>
+                      <span className={styles.workItemType}>{wi.work_item_type}</span>
+                      <a
+                        href={wi.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={styles.workItemTitle}
+                        title={wi.title}
+                      >
+                        #{wi.work_item_id} {wi.title}
+                      </a>
+                      <span className={`${styles.workItemState} ${
+                        wi.state === 'Closed' || wi.state === 'Done' ? styles.workItemStateClosed
+                        : wi.state === 'Active' ? styles.workItemStateActive
+                        : ''
+                      }`}>{wi.state}</span>
+                      <button
+                        className={styles.removeReviewerBtn}
+                        onClick={() => unlinkWorkItemMutation.mutate(wi.work_item_id)}
+                        disabled={unlinkWorkItemMutation.isPending}
+                        title="Unlink work item"
+                      >
+                        x
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className={styles.ghUnassigned}>No linked work items</div>
+              )}
+              <div className={styles.addReviewerDropdown} ref={addWorkItemRef}>
+                <button
+                  className={styles.addReviewerTrigger}
+                  onClick={() => {
+                    const opening = !addWorkItemOpen;
+                    setAddWorkItemOpen(opening);
+                    if (opening) {
+                      setWorkItemSearch('');
+                      setWorkItemResults([]);
+                      setTimeout(() => workItemSearchRef.current?.focus(), 0);
+                    }
+                  }}
+                  disabled={linkWorkItemMutation.isPending}
+                >
+                  <span className={styles.addReviewerPlaceholder}>Link work item...</span>
+                  <span className={styles.addReviewerChevron}>{addWorkItemOpen ? '\u25B4' : '\u25BE'}</span>
+                </button>
+                {addWorkItemOpen && (
+                  <div className={styles.addReviewerMenu}>
+                    <div className={styles.addReviewerSearchWrap}>
+                      <input
+                        ref={workItemSearchRef}
+                        className={styles.addReviewerSearchInput}
+                        placeholder="Search by ID or title..."
+                        value={workItemSearch}
+                        onChange={(e) => setWorkItemSearch(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Escape') setAddWorkItemOpen(false);
+                        }}
+                      />
+                    </div>
+                    {workItemSearching && (
+                      <div className={styles.addReviewerEmpty}>Searching...</div>
+                    )}
+                    {!workItemSearching && workItemResults.length === 0 && workItemSearch.trim() && (
+                      <div className={styles.addReviewerEmpty}>No results</div>
+                    )}
+                    {!workItemSearching && workItemResults
+                      .filter((r) => !pr.work_items?.some((w) => w.work_item_id === r.work_item_id))
+                      .map((r) => (
+                        <div
+                          key={r.work_item_id}
+                          className={styles.addReviewerMenuItem}
+                          onClick={() => {
+                            linkWorkItemMutation.mutate(r.work_item_id);
+                            setAddWorkItemOpen(false);
+                            setWorkItemSearch('');
+                          }}
+                        >
+                          <div className={styles.addReviewerInfo}>
+                            <span>
+                              <span className={styles.workItemType}>{r.work_item_type}</span>
+                              {' '}#{r.work_item_id} {r.title}
+                            </span>
+                            <span className={styles.addReviewerHint}>
+                              {r.state}{r.assigned_to ? ` - ${r.assigned_to}` : ''}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
 
           {/* Diff stats */}
           <section className={styles.section}>

@@ -113,9 +113,29 @@ export interface Review {
   submitted_at: string;
 }
 
+export interface WorkItem {
+  id: number;
+  work_item_id: number;
+  title: string;
+  state: string;
+  work_item_type: string;
+  url: string;
+  assigned_to: string | null;
+}
+
+export interface WorkItemSearchResult {
+  work_item_id: number;
+  title: string;
+  state: string;
+  work_item_type: string;
+  url: string;
+  assigned_to: string | null;
+}
+
 export interface PRDetail extends PRSummary {
   check_runs: CheckRun[];
   reviews: Review[];
+  work_items: WorkItem[];
 }
 
 export interface StackMember {
@@ -311,6 +331,20 @@ export const api = {
         body: JSON.stringify({ add_user_ids: addUserIds, remove_logins: removeLogins }),
       },
     ),
+
+  // ADO Work Items
+  getAdoStatus: () => request<{ configured: boolean }>('/api/ado/status'),
+  searchAdoWorkItems: (q: string) =>
+    request<WorkItemSearchResult[]>(`/api/ado/search?q=${encodeURIComponent(q)}`),
+  linkWorkItem: (repoId: number, number: number, workItemId: number) =>
+    request<WorkItem>(`/api/repos/${repoId}/pulls/${number}/work-items`, {
+      method: 'POST',
+      body: JSON.stringify({ work_item_id: workItemId }),
+    }),
+  unlinkWorkItem: (repoId: number, number: number, workItemId: number) =>
+    request<void>(`/api/repos/${repoId}/pulls/${number}/work-items/${workItemId}`, {
+      method: 'DELETE',
+    }),
 
   // Auth
   login: (password: string) =>
