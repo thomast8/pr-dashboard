@@ -47,6 +47,16 @@ export function PRDetailPanel({ repoId, prNumber, onClose, showRepoLink = true }
   });
   const activeTeam = team?.filter((m) => m.is_active) || [];
 
+  const { data: participantLogins } = useQuery({
+    queryKey: ['team-participated', repoId],
+    queryFn: () => api.listParticipants(repoId),
+    staleTime: 5 * 60 * 1000,
+  });
+  const participantSet = useMemo(
+    () => new Set(participantLogins || []),
+    [participantLogins],
+  );
+
   // Build login → display name and login → avatar maps from team data
   const nameMap = new Map<string, string>();
   const avatarMap = new Map<string, string>();
@@ -393,31 +403,58 @@ export function PRDetailPanel({ repoId, prNumber, onClose, showRepoLink = true }
                       }}
                     />
                   </div>
-                  {notAlreadyRequested.filter(matchesSearch).map((m: User) => {
-                    const resolved = resolveLogin(m);
-                    return (
-                      <div
-                        key={m.id}
-                        className={styles.addReviewerMenuItem}
-                        onClick={() => {
-                          addReviewerMutation.mutate(m.id);
-                          setAddReviewerOpen(false);
-                          setReviewerSearch('');
-                        }}
-                      >
-                        {m.avatar_url && <img src={m.avatar_url} alt={m.login} className={styles.addReviewerAvatar} />}
-                        <div className={styles.addReviewerInfo}>
-                          <span>{m.name || m.login}</span>
-                          {resolved && (
-                            <span className={styles.addReviewerHint}>will use @{resolved}</span>
-                          )}
+                  {(() => {
+                    const filtered = notAlreadyRequested.filter(matchesSearch);
+                    const hasParticipated = (m: User) =>
+                      participantSet.has(m.login) ||
+                      m.linked_accounts.some((a) => participantSet.has(a.login));
+                    const participated = filtered.filter(hasParticipated);
+                    const neverParticipated = filtered.filter((m) => !hasParticipated(m));
+
+                    const renderItem = (m: User) => {
+                      const resolved = resolveLogin(m);
+                      return (
+                        <div
+                          key={m.id}
+                          className={styles.addReviewerMenuItem}
+                          onClick={() => {
+                            addReviewerMutation.mutate(m.id);
+                            setAddReviewerOpen(false);
+                            setReviewerSearch('');
+                          }}
+                        >
+                          {m.avatar_url && <img src={m.avatar_url} alt={m.login} className={styles.addReviewerAvatar} />}
+                          <div className={styles.addReviewerInfo}>
+                            <span>{m.name || m.login}</span>
+                            {resolved && (
+                              <span className={styles.addReviewerHint}>will use @{resolved}</span>
+                            )}
+                          </div>
                         </div>
-                      </div>
+                      );
+                    };
+
+                    if (filtered.length === 0) {
+                      return <div className={styles.addReviewerEmpty}>No matching team members</div>;
+                    }
+
+                    return (
+                      <>
+                        {participated.length > 0 && (
+                          <>
+                            <div className={styles.addReviewerSectionLabel}>Participated</div>
+                            {participated.map(renderItem)}
+                          </>
+                        )}
+                        {neverParticipated.length > 0 && (
+                          <>
+                            <div className={styles.addReviewerSectionLabel}>Never participated</div>
+                            {neverParticipated.map(renderItem)}
+                          </>
+                        )}
+                      </>
                     );
-                  })}
-                  {notAlreadyRequested.filter(matchesSearch).length === 0 && (
-                    <div className={styles.addReviewerEmpty}>No matching team members</div>
-                  )}
+                  })()}
                 </div>
               )}
             </div>

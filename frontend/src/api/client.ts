@@ -285,6 +285,7 @@ export const api = {
 
   // Team (users from OAuth)
   listTeam: () => request<User[]>('/api/team'),
+  listParticipants: (repoId: number) => request<string[]>(`/api/team/participated?repo_id=${repoId}`),
   updateUser: (id: number, data: { is_active?: boolean }) =>
     request<User>(`/api/team/${id}`, {
       method: 'PUT',

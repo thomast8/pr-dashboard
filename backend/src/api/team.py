@@ -1,13 +1,13 @@
 """API routes for user management (users from GitHub OAuth)."""
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.api.schemas import LinkedAccount, UserOut, UserUpdate
 from src.db.engine import get_session
-from src.models.tables import GitHubAccount, User
+from src.models.tables import GitHubAccount, PullRequest, Review, User
 
 router = APIRouter(prefix="/api/team", tags=["team"])
 
@@ -47,6 +47,51 @@ async def list_users(
         )
         for u in users
     ]
+
+
+@router.get("/participated", response_model=list[str])
+async def list_participants(
+    repo_id: int = Query(...),
+    session: AsyncSession = Depends(get_session),
+) -> list[str]:
+    """Return sorted list of GitHub logins that have participated in a repo."""
+    # Authors
+    authors_q = select(PullRequest.author).where(PullRequest.repo_id == repo_id).distinct()
+
+    # Reviewers
+    reviewers_q = (
+        select(Review.reviewer)
+        .join(PullRequest, Review.pull_request_id == PullRequest.id)
+        .where(PullRequest.repo_id == repo_id)
+        .distinct()
+    )
+
+    # Run both queries + fetch commenters JSONB
+    authors_result = await session.execute(authors_q)
+    reviewers_result = await session.execute(reviewers_q)
+
+    logins: set[str] = set()
+    for (login,) in authors_result:
+        if login:
+            logins.add(login)
+    for (login,) in reviewers_result:
+        if login:
+            logins.add(login)
+
+    # Commenters from JSONB arrays
+    commenters_result = await session.execute(
+        select(PullRequest.commenters).where(
+            PullRequest.repo_id == repo_id,
+            PullRequest.commenters.isnot(None),
+        )
+    )
+    for (commenters_list,) in commenters_result:
+        if commenters_list:
+            for login in commenters_list:
+                if isinstance(login, str):
+                    logins.add(login)
+
+    return sorted(logins)
 
 
 @router.put("/{user_id}", response_model=UserOut)

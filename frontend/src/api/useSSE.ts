@@ -50,12 +50,14 @@ export function useSSE() {
             qc.invalidateQueries({ queryKey: ['stacks', data.repo_id], refetchType: 'active' });
             qc.invalidateQueries({ queryKey: ['pr-detail'], refetchType: 'active' });
             qc.invalidateQueries({ queryKey: ['prioritized'], refetchType: 'active' });
+            qc.invalidateQueries({ queryKey: ['team-participated', data.repo_id], refetchType: 'active' });
           }
         } catch {
           qc.invalidateQueries({ queryKey: ['pulls'], refetchType: 'active' });
           qc.invalidateQueries({ queryKey: ['stacks'], refetchType: 'active' });
           qc.invalidateQueries({ queryKey: ['pr-detail'], refetchType: 'active' });
           qc.invalidateQueries({ queryKey: ['prioritized'], refetchType: 'active' });
+          qc.invalidateQueries({ queryKey: ['team-participated'], refetchType: 'active' });
         }
       });
 

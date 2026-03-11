@@ -383,6 +383,15 @@
   margin-top: 0.2rem;
 }
 
+.addReviewerSectionLabel {
+  padding: 0.35rem 0.6rem 0.15rem;
+  font-size: 0.6rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+
 .addReviewerEmpty {
   padding: 0.5rem 0.6rem;
   font-size: 0.8rem;
