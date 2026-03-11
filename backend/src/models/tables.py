@@ -175,6 +175,9 @@ class PullRequest(Base):
     quality_snapshots: Mapped[list["QualitySnapshot"]] = relationship(
         back_populates="pull_request", cascade="all, delete-orphan"
     )
+    work_item_links: Mapped[list["WorkItemLink"]] = relationship(
+        back_populates="pull_request", cascade="all, delete-orphan"
+    )
 
 
 class CheckRun(Base):
@@ -258,3 +261,24 @@ class QualitySnapshot(Base):
     )
 
     pull_request: Mapped["PullRequest"] = relationship(back_populates="quality_snapshots")
+
+
+class WorkItemLink(Base):
+    """Links a PR to an Azure DevOps work item."""
+
+    __tablename__ = "work_item_links"
+    __table_args__ = (UniqueConstraint("pull_request_id", "work_item_id", name="uq_pr_work_item"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    pull_request_id: Mapped[int] = mapped_column(ForeignKey("pull_requests.id", ondelete="CASCADE"))
+    work_item_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    title: Mapped[str] = mapped_column(String(1024), nullable=False)
+    state: Mapped[str] = mapped_column(String(100), nullable=False)
+    work_item_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    url: Mapped[str] = mapped_column(String(1024), nullable=False)
+    assigned_to: Mapped[str | None] = mapped_column(String(255))
+    last_synced_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    pull_request: Mapped["PullRequest"] = relationship(back_populates="work_item_links")

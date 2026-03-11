@@ -99,6 +99,13 @@ class Settings(BaseSettings):
     dev_alice_token: str = Field(default="", description="GitHub PAT for Alice dev user")
     dev_bob_token: str = Field(default="", description="GitHub PAT for Bob dev user")
 
+    # Azure DevOps
+    ado_org_url: str = Field(
+        default="", description="ADO organization URL, e.g. https://dev.azure.com/Kyndryl"
+    )
+    ado_project: str = Field(default="", description="ADO project name")
+    ado_pat: str = Field(default="", description="ADO Personal Access Token (work item read scope)")
+
     # Server
     host: str = Field(default="0.0.0.0", description="Server bind host")
     port: int = Field(default=8000, description="Server bind port")
