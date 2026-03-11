@@ -1,0 +1,126 @@
+"""API routes for Azure DevOps work item linking."""
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from loguru import logger
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.db.engine import get_session
+from src.models.tables import PullRequest, WorkItemLink
+from src.services import ado_client
+
+router = APIRouter(prefix="/api/ado", tags=["work-items"])
+pr_router = APIRouter(prefix="/api/repos/{repo_id}", tags=["work-items"])
+
+
+@router.get("/status")
+async def ado_status() -> dict:
+    """Check whether ADO integration is configured."""
+    return {"configured": await ado_client.is_configured()}
+
+
+@router.get("/search")
+async def search_work_items(q: str = Query(..., min_length=1)) -> list[dict]:
+    """Search ADO work items by ID or title."""
+    if not await ado_client.is_configured():
+        raise HTTPException(status_code=400, detail="ADO is not configured")
+    try:
+        return await ado_client.search_work_items(q)
+    except Exception as exc:
+        logger.warning(f"ADO search failed: {exc}")
+        raise HTTPException(status_code=502, detail="ADO API error") from exc
+
+
+@pr_router.post("/pulls/{number}/work-items")
+async def link_work_item(
+    repo_id: int,
+    number: int,
+    body: dict,
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Link an ADO work item to a PR."""
+    if not await ado_client.is_configured():
+        raise HTTPException(status_code=400, detail="ADO is not configured")
+
+    work_item_id = body.get("work_item_id")
+    if not work_item_id or not isinstance(work_item_id, int):
+        raise HTTPException(
+            status_code=422, detail="work_item_id is required and must be an integer"
+        )
+
+    # Find the PR
+    result = await session.execute(
+        select(PullRequest).where(PullRequest.repo_id == repo_id, PullRequest.number == number)
+    )
+    pr = result.scalar_one_or_none()
+    if not pr:
+        raise HTTPException(status_code=404, detail=f"PR #{number} not found")
+
+    # Check if already linked
+    existing = await session.execute(
+        select(WorkItemLink).where(
+            WorkItemLink.pull_request_id == pr.id,
+            WorkItemLink.work_item_id == work_item_id,
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail="Work item already linked to this PR")
+
+    # Fetch details from ADO
+    item = await ado_client.get_work_item(work_item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail=f"ADO work item {work_item_id} not found")
+
+    link = WorkItemLink(
+        pull_request_id=pr.id,
+        work_item_id=item["work_item_id"],
+        title=item["title"],
+        state=item["state"],
+        work_item_type=item["work_item_type"],
+        url=item["url"],
+        assigned_to=item["assigned_to"],
+    )
+    session.add(link)
+    await session.commit()
+    await session.refresh(link)
+
+    return {
+        "id": link.id,
+        "work_item_id": link.work_item_id,
+        "title": link.title,
+        "state": link.state,
+        "work_item_type": link.work_item_type,
+        "url": link.url,
+        "assigned_to": link.assigned_to,
+    }
+
+
+@pr_router.delete("/pulls/{number}/work-items/{work_item_id}")
+async def unlink_work_item(
+    repo_id: int,
+    number: int,
+    work_item_id: int,
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Remove a work item link from a PR."""
+    result = await session.execute(
+        select(PullRequest).where(PullRequest.repo_id == repo_id, PullRequest.number == number)
+    )
+    pr = result.scalar_one_or_none()
+    if not pr:
+        raise HTTPException(status_code=404, detail=f"PR #{number} not found")
+
+    link = (
+        await session.execute(
+            select(WorkItemLink).where(
+                WorkItemLink.pull_request_id == pr.id,
+                WorkItemLink.work_item_id == work_item_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if not link:
+        raise HTTPException(status_code=404, detail="Work item link not found")
+
+    await session.delete(link)
+    await session.commit()
+    return {"ok": True}

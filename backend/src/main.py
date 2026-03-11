@@ -19,6 +19,8 @@ from src.api.repos import router as repos_router
 from src.api.spaces import router as spaces_router
 from src.api.stacks import router as stacks_router
 from src.api.team import router as team_router
+from src.api.work_items import pr_router as work_items_pr_router
+from src.api.work_items import router as work_items_router
 from src.config.settings import settings
 from src.services.sync_service import SyncService
 
@@ -65,6 +67,8 @@ app.include_router(prioritize_router)
 app.include_router(team_router)
 app.include_router(stacks_router)
 app.include_router(events_router)
+app.include_router(work_items_router)
+app.include_router(work_items_pr_router)
 
 
 @app.get("/api/health")

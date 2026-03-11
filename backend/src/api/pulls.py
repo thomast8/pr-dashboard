@@ -16,6 +16,7 @@ from src.api.schemas import (
     PRSummary,
     ReviewerUpdate,
     ReviewOut,
+    WorkItemOut,
 )
 from src.db.engine import get_session
 from src.models.tables import (
@@ -284,6 +285,7 @@ async def get_pull(
         .options(
             selectinload(PullRequest.check_runs),
             selectinload(PullRequest.reviews),
+            selectinload(PullRequest.work_item_links),
             joinedload(PullRequest.assignee),
         )
         .where(PullRequest.repo_id == repo_id, PullRequest.number == number)
@@ -335,6 +337,18 @@ async def get_pull(
                 submitted_at=r.submitted_at,
             )
             for r in pr.reviews
+        ],
+        work_items=[
+            WorkItemOut(
+                id=w.id,
+                work_item_id=w.work_item_id,
+                title=w.title,
+                state=w.state,
+                work_item_type=w.work_item_type,
+                url=w.url,
+                assigned_to=w.assigned_to,
+            )
+            for w in pr.work_item_links
         ],
     )
 

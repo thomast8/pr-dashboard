@@ -138,9 +138,20 @@ class PRSummary(BaseModel):
     commenters_without_review: list[str] = []
 
 
+class WorkItemOut(BaseModel):
+    id: int
+    work_item_id: int
+    title: str
+    state: str
+    work_item_type: str
+    url: str
+    assigned_to: str | None
+
+
 class PRDetail(PRSummary):
     check_runs: list[CheckRunOut] = []
     reviews: list[ReviewOut] = []
+    work_items: list[WorkItemOut] = []
 
 
 # ── Stacks ───────────────────────────────────────────────────
