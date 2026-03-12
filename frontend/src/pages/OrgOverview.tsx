@@ -8,7 +8,7 @@ import { useCurrentUser } from '../App';
 import { GitHubIcon } from '../components/GitHubIcon';
 import { Tooltip } from '../components/Tooltip';
 import { useStore } from '../store/useStore';
-import { repoColor } from '../utils/repoColors';
+import { buildRepoColorMap } from '../utils/repoColors';
 import styles from './OrgOverview.module.css';
 
 function timeAgo(dateStr: string | null): string {
@@ -267,6 +267,9 @@ export function OrgOverview() {
     return groups;
   }, [repos, spaces]);
 
+  // Build color map across all repos for unique color assignment
+  const colorMap = useMemo(() => buildRepoColorMap((repos || []).map((r) => r.full_name)), [repos]);
+
   if (reposLoading) return <div className={styles.loading}>Loading repos...</div>;
 
   const hasContent = (repos && repos.length > 0) || (spaces && spaces.some((s) => s.is_active));
@@ -362,7 +365,7 @@ export function OrgOverview() {
           </div>
           <div className={styles.grid}>
             {groupRepos.map((repo) => {
-              const color = repoColor(repo.full_name);
+              const color = colorMap.get(repo.full_name) ?? '#888';
               return (
               <Link
                 key={repo.id}

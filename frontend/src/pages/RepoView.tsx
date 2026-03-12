@@ -9,7 +9,7 @@ import { DependencyGraph } from '../components/DependencyGraph';
 import { PRDetailPanel } from '../components/PRDetailPanel';
 import { Tooltip } from '../components/Tooltip';
 import { useStore, DEFAULT_REPO_FILTERS } from '../store/useStore';
-import { repoColor } from '../utils/repoColors';
+import { buildRepoColorMap } from '../utils/repoColors';
 import styles from './RepoView.module.css';
 
 export function RepoView() {
@@ -122,15 +122,18 @@ export function RepoView() {
     prevSyncedAt.current = repo?.last_synced_at;
   }, [repo?.last_synced_at, repo?.id, qc]);
 
+  // Build color map across all repos for unique color assignment
+  const colorMap = useMemo(() => buildRepoColorMap((repos || []).map((r) => r.full_name)), [repos]);
+
   // Apply repo color tint to the Shell's .main scroll container
   const containerRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const main = containerRef.current?.parentElement;
     if (!main || !repo) return;
-    const color = `${repoColor(repo.full_name)}18`;
+    const color = `${colorMap.get(repo.full_name) ?? '#888'}18`;
     main.style.background = color;
     return () => { main.style.background = ''; };
-  }, [repo]);
+  }, [repo, colorMap]);
 
   const pullParams = stateFilter === 'merged' ? { include_merged_days: '7' } : undefined;
   const { data: pulls, isLoading } = useQuery({
@@ -294,7 +297,7 @@ export function RepoView() {
                 className={`${styles.filterTrigger} ${styles.repoTrigger}`}
                 onClick={() => setRepoDropdownOpen(!repoDropdownOpen)}
               >
-                {repo && <span className={styles.repoDot} style={{ backgroundColor: repoColor(repo.full_name) }} />}
+                {repo && <span className={styles.repoDot} style={{ backgroundColor: colorMap.get(repo.full_name) ?? '#888' }} />}
                 <span>{name}</span>
                 <span className={styles.filterChevron}>{repoDropdownOpen ? '\u25B4' : '\u25BE'}</span>
               </button>
@@ -318,7 +321,7 @@ export function RepoView() {
                             selectPr(null);
                           }}
                         >
-                          <span className={styles.repoDot} style={{ backgroundColor: repoColor(r.full_name) }} />
+                          <span className={styles.repoDot} style={{ backgroundColor: colorMap.get(r.full_name) ?? '#888' }} />
                           <span>{r.name}</span>
                         </div>
                       ))}

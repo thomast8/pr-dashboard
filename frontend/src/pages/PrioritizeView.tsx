@@ -7,7 +7,7 @@ import { useCurrentUser } from '../App';
 import { PRDetailPanel } from '../components/PRDetailPanel';
 import { Tooltip } from '../components/Tooltip';
 import { useStore } from '../store/useStore';
-import { repoColor } from '../utils/repoColors';
+import { buildRepoColorMap } from '../utils/repoColors';
 import styles from './PrioritizeView.module.css';
 
 function scoreColor(score: number): string {
@@ -245,13 +245,14 @@ export function PrioritizeView() {
     return map;
   }, [team]);
 
-  // Build repo color map keyed by repo id
+  // Build repo color map keyed by repo id (index-based for unique colors)
   const repoColorMap = useMemo(() => {
-    const map = new Map<number, string>();
+    const nameMap = buildRepoColorMap((repos || []).map((r) => r.full_name));
+    const idMap = new Map<number, string>();
     for (const r of repos || []) {
-      map.set(r.id, repoColor(r.full_name));
+      idMap.set(r.id, nameMap.get(r.full_name)!);
     }
-    return map;
+    return idMap;
   }, [repos]);
 
   const { data: items, isLoading } = useQuery({
