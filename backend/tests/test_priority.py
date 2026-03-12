@@ -356,6 +356,142 @@ class TestBuildMergeOrder:
         """Empty input returns empty output."""
         assert _build_merge_order([], [], []) == []
 
+    def test_stacked_prs_topological_order(self):
+        """Stacked PRs are ordered by position (parent before child)."""
+        now = datetime.now(UTC)
+        scored = [
+            {
+                "pr_id": 10,
+                "score": 40,
+                "pr": type("PR", (), {"created_at": now - timedelta(days=1)})(),
+                "stack_id": None,
+                "stack_name": None,
+                "blocked_by_pr_id": None,
+            },
+            {
+                "pr_id": 20,
+                "score": 70,
+                "pr": type("PR", (), {"created_at": now - timedelta(days=2)})(),
+                "stack_id": None,
+                "stack_name": None,
+                "blocked_by_pr_id": None,
+            },
+            {
+                "pr_id": 30,
+                "score": 60,
+                "pr": type("PR", (), {"created_at": now - timedelta(days=3)})(),
+                "stack_id": None,
+                "stack_name": None,
+                "blocked_by_pr_id": None,
+            },
+        ]
+
+        # Stack: PR 20 (pos 0, root) -> PR 30 (pos 1, child)
+        FakeStack = type("FakeStack", (), {})
+        stack = FakeStack()
+        stack.id = 1
+        stack.name = "my-stack"
+
+        FakeMembership = type("FakeMembership", (), {})
+        m1 = FakeMembership()
+        m1.stack_id = 1
+        m1.pull_request_id = 20
+        m1.position = 0
+        m1.parent_pr_id = None
+
+        m2 = FakeMembership()
+        m2.stack_id = 1
+        m2.pull_request_id = 30
+        m2.position = 1
+        m2.parent_pr_id = 20
+
+        result = _build_merge_order(scored, [m1, m2], [stack])
+        ids = [e["pr_id"] for e in result]
+        # Stack root (20, score 70) beats standalone (10, score 40)
+        # Stack members in topo order: 20 then 30
+        assert ids == [20, 30, 10]
+
+    def test_mixed_standalone_and_stack_interleaving(self):
+        """Standalone PR with higher score than stack root appears first."""
+        now = datetime.now(UTC)
+        scored = [
+            {
+                "pr_id": 1,
+                "score": 90,
+                "pr": type("PR", (), {"created_at": now - timedelta(days=5)})(),
+                "stack_id": None,
+                "stack_name": None,
+                "blocked_by_pr_id": None,
+            },
+            {
+                "pr_id": 2,
+                "score": 50,
+                "pr": type("PR", (), {"created_at": now - timedelta(days=2)})(),
+                "stack_id": None,
+                "stack_name": None,
+                "blocked_by_pr_id": None,
+            },
+            {
+                "pr_id": 3,
+                "score": 70,
+                "pr": type("PR", (), {"created_at": now - timedelta(days=3)})(),
+                "stack_id": None,
+                "stack_name": None,
+                "blocked_by_pr_id": None,
+            },
+        ]
+
+        FakeStack = type("FakeStack", (), {})
+        stack = FakeStack()
+        stack.id = 1
+        stack.name = "s"
+
+        FakeMembership = type("FakeMembership", (), {})
+        m1 = FakeMembership()
+        m1.stack_id = 1
+        m1.pull_request_id = 3
+        m1.position = 0
+        m1.parent_pr_id = None
+
+        result = _build_merge_order(scored, [m1], [stack])
+        ids = [e["pr_id"] for e in result]
+        # Standalone 1 (90) > stack root 3 (70) > standalone 2 (50)
+        assert ids == [1, 3, 2]
+
+    def test_tiebreaker_older_first(self):
+        """Standalone PRs with equal score are sorted by age (older first)."""
+        now = datetime.now(UTC)
+        scored = [
+            {
+                "pr_id": 1,
+                "score": 50,
+                "pr": type("PR", (), {"created_at": now - timedelta(days=1)})(),
+                "stack_id": None,
+                "stack_name": None,
+                "blocked_by_pr_id": None,
+            },
+            {
+                "pr_id": 2,
+                "score": 50,
+                "pr": type("PR", (), {"created_at": now - timedelta(days=5)})(),
+                "stack_id": None,
+                "stack_name": None,
+                "blocked_by_pr_id": None,
+            },
+            {
+                "pr_id": 3,
+                "score": 50,
+                "pr": type("PR", (), {"created_at": now - timedelta(days=3)})(),
+                "stack_id": None,
+                "stack_name": None,
+                "blocked_by_pr_id": None,
+            },
+        ]
+        result = _build_merge_order(scored, [], [])
+        ids = [e["pr_id"] for e in result]
+        # Same score, older created_at first: PR 2 (5d), PR 3 (3d), PR 1 (1d)
+        assert ids == [2, 3, 1]
+
 
 # ── Sync: reading priority labels ─────────────────────
 
