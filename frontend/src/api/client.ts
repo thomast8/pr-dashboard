@@ -334,6 +334,8 @@ export const api = {
 
   // ADO Work Items
   getAdoStatus: () => request<{ configured: boolean }>('/api/ado/status'),
+  listAdoWorkItems: () =>
+    request<WorkItemSearchResult[]>('/api/ado/work-items'),
   searchAdoWorkItems: (q: string) =>
     request<WorkItemSearchResult[]>(`/api/ado/search?q=${encodeURIComponent(q)}`),
   linkWorkItem: (repoId: number, number: number, workItemId: number) =>

@@ -19,6 +19,18 @@ async def ado_status() -> dict:
     return {"configured": await ado_client.is_configured()}
 
 
+@router.get("/work-items")
+async def list_work_items() -> list[dict]:
+    """Return recent ADO work items for preloading in the dropdown."""
+    if not await ado_client.is_configured():
+        raise HTTPException(status_code=400, detail="ADO is not configured")
+    try:
+        return await ado_client.list_work_items()
+    except Exception as exc:
+        logger.warning(f"ADO list_work_items failed: {exc}")
+        raise HTTPException(status_code=502, detail="ADO API error") from exc
+
+
 @router.get("/search")
 async def search_work_items(q: str = Query(..., min_length=1)) -> list[dict]:
     """Search ADO work items by ID or title."""

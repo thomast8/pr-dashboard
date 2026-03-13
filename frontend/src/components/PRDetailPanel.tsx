@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, type PRDetail, type User, type Space, type WorkItemSearchResult } from '../api/client';
+import { api, type PRDetail, type User, type Space } from '../api/client';
 import { StatusDot } from './StatusDot';
 import { Tooltip } from './Tooltip';
 import styles from './PRDetailPanel.module.css';
@@ -26,11 +26,8 @@ export function PRDetailPanel({ repoId, prNumber, onClose, showRepoLink = true }
   // Work items state
   const [addWorkItemOpen, setAddWorkItemOpen] = useState(false);
   const [workItemSearch, setWorkItemSearch] = useState('');
-  const [workItemResults, setWorkItemResults] = useState<WorkItemSearchResult[]>([]);
-  const [workItemSearching, setWorkItemSearching] = useState(false);
   const addWorkItemRef = useRef<HTMLDivElement>(null);
   const workItemSearchRef = useRef<HTMLInputElement>(null);
-  const workItemDebounceRef = useRef<ReturnType<typeof setTimeout>>(null);
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -146,28 +143,26 @@ export function PRDetailPanel({ repoId, prNumber, onClose, showRepoLink = true }
     onSuccess: invalidatePr,
   });
 
-  // Debounced ADO search
-  useEffect(() => {
-    if (!workItemSearch.trim()) {
-      setWorkItemResults([]);
-      return;
-    }
-    if (workItemDebounceRef.current) clearTimeout(workItemDebounceRef.current);
-    workItemDebounceRef.current = setTimeout(async () => {
-      setWorkItemSearching(true);
-      try {
-        const results = await api.searchAdoWorkItems(workItemSearch.trim());
-        setWorkItemResults(results);
-      } catch {
-        setWorkItemResults([]);
-      } finally {
-        setWorkItemSearching(false);
-      }
-    }, 400);
-    return () => {
-      if (workItemDebounceRef.current) clearTimeout(workItemDebounceRef.current);
-    };
-  }, [workItemSearch]);
+  // Preload all ADO work items, filter client-side
+  const { data: allWorkItems, isLoading: workItemsLoading } = useQuery({
+    queryKey: ['ado-work-items'],
+    queryFn: api.listAdoWorkItems,
+    enabled: adoStatus?.configured === true,
+    staleTime: 5 * 60_000,
+  });
+
+  const filteredWorkItems = useMemo(() => {
+    const items = allWorkItems || [];
+    const alreadyLinked = new Set(pr?.work_items?.map((w) => w.work_item_id) || []);
+    const available = items.filter((r) => !alreadyLinked.has(r.work_item_id));
+    const q = workItemSearch.trim().toLowerCase();
+    if (!q) return available;
+    return available.filter(
+      (r) =>
+        String(r.work_item_id).includes(q) ||
+        r.title.toLowerCase().includes(q),
+    );
+  }, [allWorkItems, workItemSearch, pr?.work_items]);
 
   // Build unified reviewer list: merge requested reviewers + reviews
   const unifiedReviewers = useMemo(() => {
@@ -462,7 +457,6 @@ export function PRDetailPanel({ repoId, prNumber, onClose, showRepoLink = true }
                     setAddWorkItemOpen(opening);
                     if (opening) {
                       setWorkItemSearch('');
-                      setWorkItemResults([]);
                       setTimeout(() => workItemSearchRef.current?.focus(), 0);
                     }
                   }}
@@ -477,7 +471,7 @@ export function PRDetailPanel({ repoId, prNumber, onClose, showRepoLink = true }
                       <input
                         ref={workItemSearchRef}
                         className={styles.addReviewerSearchInput}
-                        placeholder="Search by ID or title..."
+                        placeholder="Filter by ID or title..."
                         value={workItemSearch}
                         onChange={(e) => setWorkItemSearch(e.target.value)}
                         onKeyDown={(e) => {
@@ -485,15 +479,13 @@ export function PRDetailPanel({ repoId, prNumber, onClose, showRepoLink = true }
                         }}
                       />
                     </div>
-                    {workItemSearching && (
-                      <div className={styles.addReviewerEmpty}>Searching...</div>
+                    {workItemsLoading && (
+                      <div className={styles.addReviewerEmpty}>Loading...</div>
                     )}
-                    {!workItemSearching && workItemResults.length === 0 && workItemSearch.trim() && (
-                      <div className={styles.addReviewerEmpty}>No results</div>
+                    {!workItemsLoading && filteredWorkItems.length === 0 && (
+                      <div className={styles.addReviewerEmpty}>No matching work items</div>
                     )}
-                    {!workItemSearching && workItemResults
-                      .filter((r) => !pr.work_items?.some((w) => w.work_item_id === r.work_item_id))
-                      .map((r) => (
+                    {!workItemsLoading && filteredWorkItems.map((r) => (
                         <div
                           key={r.work_item_id}
                           className={styles.addReviewerMenuItem}
