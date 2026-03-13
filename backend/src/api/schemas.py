@@ -239,6 +239,24 @@ class ReviewerUpdate(BaseModel):
     remove_logins: list[str] = []
 
 
+# ── ADO Accounts ────────────────────────────────────────────
+
+
+class AdoAccountCreate(BaseModel):
+    token: str
+    org_url: str
+    project: str
+
+
+class AdoAccountOut(BaseModel):
+    id: int
+    org_url: str
+    project: str
+    display_name: str | None
+    has_token: bool
+    created_at: datetime
+
+
 # ── Auth ─────────────────────────────────────────────────────
 
 

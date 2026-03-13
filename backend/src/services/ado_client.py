@@ -1,4 +1,8 @@
-"""Azure DevOps API client for work item operations."""
+"""Azure DevOps API client for work item operations.
+
+All functions accept token, org_url, and project as parameters
+(resolved from the authenticated user's AdoAccount).
+"""
 
 import base64
 import re
@@ -7,23 +11,21 @@ from urllib.parse import quote
 import httpx
 from loguru import logger
 
-from src.config.settings import settings
-
 API_VERSION = "7.1"
 
 
-def _auth_header() -> dict[str, str]:
+def _auth_header(token: str) -> dict[str, str]:
     """Basic auth with empty username + PAT (ADO standard)."""
-    encoded = base64.b64encode(f":{settings.ado_pat}".encode()).decode()
+    encoded = base64.b64encode(f":{token}".encode()).decode()
     return {"Authorization": f"Basic {encoded}"}
 
 
-def _work_item_url(item_id: int) -> str:
+def _work_item_url(org_url: str, project: str, item_id: int) -> str:
     """Build a clickable URL to a work item in the ADO web UI."""
-    return f"{settings.ado_org_url}/{settings.ado_project}/_workitems/edit/{item_id}"
+    return f"{org_url}/{project}/_workitems/edit/{item_id}"
 
 
-def _parse_work_item(item: dict) -> dict:
+def _parse_work_item(item: dict, org_url: str, project: str) -> dict:
     """Extract relevant fields from an ADO work item response."""
     fields = item.get("fields", {})
     item_id = item["id"]
@@ -32,19 +34,14 @@ def _parse_work_item(item: dict) -> dict:
         "title": fields.get("System.Title", ""),
         "state": fields.get("System.State", ""),
         "work_item_type": fields.get("System.WorkItemType", ""),
-        "url": _work_item_url(item_id),
+        "url": _work_item_url(org_url, project, item_id),
         "assigned_to": (fields.get("System.AssignedTo") or {}).get("displayName"),
     }
 
 
-async def is_configured() -> bool:
-    """Check if ADO integration is configured."""
-    return bool(settings.ado_org_url and settings.ado_pat and settings.ado_project)
-
-
-async def list_work_items(limit: int = 100) -> list[dict]:
+async def list_work_items(token: str, org_url: str, project: str, limit: int = 100) -> list[dict]:
     """Fetch recent work items ordered by ChangedDate DESC."""
-    base_url = f"{settings.ado_org_url}/{quote(settings.ado_project)}/_apis"
+    base_url = f"{org_url}/{quote(project)}/_apis"
     wiql = (
         "SELECT [System.Id] FROM WorkItems "
         "WHERE [System.TeamProject] = @project "
@@ -54,7 +51,7 @@ async def list_work_items(limit: int = 100) -> list[dict]:
     async with httpx.AsyncClient(timeout=30.0) as client:
         wiql_resp = await client.post(
             f"{base_url}/wit/wiql?api-version={API_VERSION}&$top={limit}",
-            headers={**_auth_header(), "Content-Type": "application/json"},
+            headers={**_auth_header(token), "Content-Type": "application/json"},
             json={"query": wiql},
         )
         wiql_resp.raise_for_status()
@@ -68,16 +65,18 @@ async def list_work_items(limit: int = 100) -> list[dict]:
         fields = "System.Id,System.Title,System.State,System.WorkItemType,System.AssignedTo"
         detail_resp = await client.get(
             f"{base_url}/wit/workitems?ids={','.join(ids)}&fields={fields}&api-version={API_VERSION}",
-            headers=_auth_header(),
+            headers=_auth_header(token),
         )
         detail_resp.raise_for_status()
 
-        return [_parse_work_item(item) for item in detail_resp.json().get("value", [])]
+        return [
+            _parse_work_item(item, org_url, project) for item in detail_resp.json().get("value", [])
+        ]
 
 
-async def search_work_items(query: str) -> list[dict]:
+async def search_work_items(token: str, org_url: str, project: str, query: str) -> list[dict]:
     """Search ADO work items by ID or title substring using WIQL."""
-    base_url = f"{settings.ado_org_url}/{quote(settings.ado_project)}/_apis"
+    base_url = f"{org_url}/{quote(project)}/_apis"
 
     # If query is a pure number, search by ID; otherwise by title
     if query.strip().isdigit():
@@ -91,10 +90,9 @@ async def search_work_items(query: str) -> list[dict]:
         )
 
     async with httpx.AsyncClient(timeout=30.0) as client:
-        # Step 1: Run WIQL query to get work item IDs
         wiql_resp = await client.post(
             f"{base_url}/wit/wiql?api-version={API_VERSION}",
-            headers={**_auth_header(), "Content-Type": "application/json"},
+            headers={**_auth_header(token), "Content-Type": "application/json"},
             json={"query": wiql},
         )
         wiql_resp.raise_for_status()
@@ -103,18 +101,18 @@ async def search_work_items(query: str) -> list[dict]:
         if not work_items:
             return []
 
-        # Limit to 20 results
         ids = [str(wi["id"]) for wi in work_items[:20]]
 
-        # Step 2: Fetch full details for those IDs
         fields = "System.Id,System.Title,System.State,System.WorkItemType,System.AssignedTo"
         detail_resp = await client.get(
             f"{base_url}/wit/workitems?ids={','.join(ids)}&fields={fields}&api-version={API_VERSION}",
-            headers=_auth_header(),
+            headers=_auth_header(token),
         )
         detail_resp.raise_for_status()
 
-        return [_parse_work_item(item) for item in detail_resp.json().get("value", [])]
+        return [
+            _parse_work_item(item, org_url, project) for item in detail_resp.json().get("value", [])
+        ]
 
 
 def _pr_tag(pr_number: int) -> str:
@@ -125,18 +123,25 @@ def _pr_desc_html(url: str, pr_number: int) -> str:
     return f'<div><a href="{url}">PR #{pr_number}</a></div>'
 
 
-async def add_hyperlink(work_item_id: int, url: str, comment: str, pr_number: int) -> bool:
+async def add_hyperlink(
+    token: str,
+    org_url: str,
+    project: str,
+    work_item_id: int,
+    url: str,
+    comment: str,
+    pr_number: int,
+) -> bool:
     """Add hyperlink, PR tag in title, and PR link in description."""
-    base_url = f"{settings.ado_org_url}/{quote(settings.ado_project)}/_apis"
+    base_url = f"{org_url}/{quote(project)}/_apis"
     api_url = f"{base_url}/wit/workitems/{work_item_id}"
-    headers = {**_auth_header(), "Content-Type": "application/json-patch+json"}
+    headers = {**_auth_header(token), "Content-Type": "application/json-patch+json"}
 
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
-            # Read current title + description
             resp = await client.get(
                 f"{api_url}?api-version={API_VERSION}",
-                headers=_auth_header(),
+                headers=_auth_header(token),
             )
             resp.raise_for_status()
             fields = resp.json().get("fields", {})
@@ -189,17 +194,24 @@ async def add_hyperlink(work_item_id: int, url: str, comment: str, pr_number: in
         return False
 
 
-async def remove_hyperlink(work_item_id: int, url: str, pr_number: int) -> bool:
+async def remove_hyperlink(
+    token: str,
+    org_url: str,
+    project: str,
+    work_item_id: int,
+    url: str,
+    pr_number: int,
+) -> bool:
     """Remove hyperlink, PR tag from title, and PR link from description."""
-    base_url = f"{settings.ado_org_url}/{quote(settings.ado_project)}/_apis"
+    base_url = f"{org_url}/{quote(project)}/_apis"
     api_url = f"{base_url}/wit/workitems/{work_item_id}"
-    headers = {**_auth_header(), "Content-Type": "application/json-patch+json"}
+    headers = {**_auth_header(token), "Content-Type": "application/json-patch+json"}
 
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
             resp = await client.get(
                 f"{api_url}?$expand=Relations&api-version={API_VERSION}",
-                headers=_auth_header(),
+                headers=_auth_header(token),
             )
             resp.raise_for_status()
             data = resp.json()
@@ -212,7 +224,6 @@ async def remove_hyperlink(work_item_id: int, url: str, pr_number: int) -> bool:
 
             patch_body: list[dict] = []
 
-            # Remove hyperlink relation by index
             for idx, rel in enumerate(relations):
                 if rel.get("rel") == "Hyperlink" and rel.get("url") == url:
                     patch_body.append(
@@ -223,7 +234,6 @@ async def remove_hyperlink(work_item_id: int, url: str, pr_number: int) -> bool:
                     )
                     break
 
-            # Strip PR tag from title
             if tag in cur_title:
                 new_title = cur_title.replace(f" {tag}", "").replace(tag, "")
                 patch_body.append(
@@ -234,7 +244,6 @@ async def remove_hyperlink(work_item_id: int, url: str, pr_number: int) -> bool:
                     }
                 )
 
-            # Strip PR link from description (ADO may add whitespace)
             escaped_url = re.escape(url)
             pattern = rf"<div>\s*<a\s+href=\"{escaped_url}\"\s*>" rf"PR\s*#{pr_number}</a>\s*</div>"
             new_desc = re.sub(pattern, "", cur_desc)
@@ -264,19 +273,19 @@ async def remove_hyperlink(work_item_id: int, url: str, pr_number: int) -> bool:
         return False
 
 
-async def get_work_item(item_id: int) -> dict | None:
+async def get_work_item(token: str, org_url: str, project: str, item_id: int) -> dict | None:
     """Fetch a single work item's current details."""
-    base_url = f"{settings.ado_org_url}/{quote(settings.ado_project)}/_apis"
+    base_url = f"{org_url}/{quote(project)}/_apis"
     fields = "System.Id,System.Title,System.State,System.WorkItemType,System.AssignedTo"
 
     async with httpx.AsyncClient(timeout=15.0) as client:
         try:
             resp = await client.get(
                 f"{base_url}/wit/workitems/{item_id}?fields={fields}&api-version={API_VERSION}",
-                headers=_auth_header(),
+                headers=_auth_header(token),
             )
             resp.raise_for_status()
-            return _parse_work_item(resp.json())
+            return _parse_work_item(resp.json(), org_url, project)
         except httpx.HTTPStatusError as exc:
             logger.warning(f"Failed to fetch ADO work item {item_id}: {exc}")
             return None

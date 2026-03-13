@@ -10,6 +10,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from loguru import logger
 
 from src.api.accounts import router as accounts_router
+from src.api.ado_accounts import router as ado_accounts_router
 from src.api.auth import AuthMiddleware
 from src.api.auth import router as auth_router
 from src.api.events import router as events_router
@@ -67,6 +68,7 @@ app.include_router(prioritize_router)
 app.include_router(team_router)
 app.include_router(stacks_router)
 app.include_router(events_router)
+app.include_router(ado_accounts_router)
 app.include_router(work_items_router)
 app.include_router(work_items_pr_router)
 

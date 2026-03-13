@@ -209,6 +209,15 @@ export interface PrioritizedPR {
   mode: string;
 }
 
+export interface AdoAccountInfo {
+  id: number;
+  org_url: string;
+  project: string;
+  display_name: string | null;
+  has_token: boolean;
+  created_at: string;
+}
+
 // ── API functions ────────────────────────────────
 
 export const api = {
@@ -331,6 +340,16 @@ export const api = {
         body: JSON.stringify({ add_user_ids: addUserIds, remove_logins: removeLogins }),
       },
     ),
+
+  // ADO Accounts
+  listAdoAccounts: () => request<AdoAccountInfo[]>('/api/ado-accounts'),
+  linkAdoAccount: (token: string, orgUrl: string, project: string) =>
+    request<AdoAccountInfo>('/api/ado-accounts', {
+      method: 'POST',
+      body: JSON.stringify({ token, org_url: orgUrl, project }),
+    }),
+  removeAdoAccount: (accountId: number) =>
+    request<void>(`/api/ado-accounts/${accountId}`, { method: 'DELETE' }),
 
   // ADO Work Items
   getAdoStatus: () => request<{ configured: boolean }>('/api/ado/status'),
