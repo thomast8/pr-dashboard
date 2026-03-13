@@ -230,6 +230,14 @@ export interface AdoAccountInfo {
   created_at: string;
 }
 
+export interface VersionInfo {
+  version: string;
+  release_notes: string | null;
+  release_url: string | null;
+  release_name: string | null;
+  published_at: string | null;
+}
+
 // ── API functions ────────────────────────────────
 
 export const api = {
@@ -386,6 +394,9 @@ export const api = {
     request<void>(`/api/repos/${repoId}/pulls/${number}/work-items/${workItemId}`, {
       method: 'DELETE',
     }),
+
+  // Version
+  getVersion: () => request<VersionInfo>('/api/version'),
 
   // Auth
   login: (password: string) =>
