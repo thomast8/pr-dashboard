@@ -16,7 +16,7 @@ from src.services.crypto import decrypt_token
 
 router = APIRouter(prefix="/api", tags=["version"])
 
-REPO_OWNER = "ADG-Projects"
+REPO_OWNER = "thomast8"
 REPO_NAME = "pr-dashboard"
 CACHE_TTL_SECONDS = 3600  # 1 hour
 
@@ -95,7 +95,7 @@ async def _fetch_release_info() -> dict:
 
     url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/releases/latest"
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
+        async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
             resp = await client.get(url, headers=headers)
             # Token from a different org may 403; retry unauthenticated for public repos
             if resp.status_code == 403 and token:
@@ -133,7 +133,7 @@ async def _fetch_all_releases() -> list[dict]:
 
     url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/releases"
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
+        async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
             resp = await client.get(url, headers=headers)
             if resp.status_code == 403 and token:
                 headers.pop("Authorization", None)
