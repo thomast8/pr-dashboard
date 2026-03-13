@@ -96,6 +96,15 @@ async def link_work_item(
     await session.commit()
     await session.refresh(link)
 
+    # Reverse-link: add hyperlink + PR tag/description on ADO work item
+    if pr.html_url:
+        await ado_client.add_hyperlink(
+            work_item_id,
+            pr.html_url,
+            f"Linked from PR Dashboard: {pr.html_url}",
+            pr_number=pr.number,
+        )
+
     return {
         "id": link.id,
         "work_item_id": link.work_item_id,
@@ -132,6 +141,10 @@ async def unlink_work_item(
     ).scalar_one_or_none()
     if not link:
         raise HTTPException(status_code=404, detail="Work item link not found")
+
+    # Reverse-link: remove hyperlink + PR tag/description from ADO work item
+    if pr.html_url:
+        await ado_client.remove_hyperlink(work_item_id, pr.html_url, pr_number=pr.number)
 
     await session.delete(link)
     await session.commit()

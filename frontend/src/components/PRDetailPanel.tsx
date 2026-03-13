@@ -26,6 +26,7 @@ export function PRDetailPanel({ repoId, prNumber, onClose, showRepoLink = true }
   // Work items state
   const [addWorkItemOpen, setAddWorkItemOpen] = useState(false);
   const [workItemSearch, setWorkItemSearch] = useState('');
+  const [showAllTypes, setShowAllTypes] = useState(false);
   const addWorkItemRef = useRef<HTMLDivElement>(null);
   const workItemSearchRef = useRef<HTMLInputElement>(null);
 
@@ -36,6 +37,7 @@ export function PRDetailPanel({ repoId, prNumber, onClose, showRepoLink = true }
       }
       if (addWorkItemRef.current && !addWorkItemRef.current.contains(e.target as Node)) {
         setAddWorkItemOpen(false);
+        setShowAllTypes(false);
       }
     }
     document.addEventListener('mousedown', handleClick);
@@ -154,7 +156,10 @@ export function PRDetailPanel({ repoId, prNumber, onClose, showRepoLink = true }
   const filteredWorkItems = useMemo(() => {
     const items = allWorkItems || [];
     const alreadyLinked = new Set(pr?.work_items?.map((w) => w.work_item_id) || []);
-    const available = items.filter((r) => !alreadyLinked.has(r.work_item_id));
+    let available = items.filter((r) => !alreadyLinked.has(r.work_item_id));
+    if (!showAllTypes) {
+      available = available.filter((r) => r.work_item_type === 'Task' || r.work_item_type === 'Bug');
+    }
     const q = workItemSearch.trim().toLowerCase();
     if (!q) return available;
     return available.filter(
@@ -162,7 +167,7 @@ export function PRDetailPanel({ repoId, prNumber, onClose, showRepoLink = true }
         String(r.work_item_id).includes(q) ||
         r.title.toLowerCase().includes(q),
     );
-  }, [allWorkItems, workItemSearch, pr?.work_items]);
+  }, [allWorkItems, workItemSearch, showAllTypes, pr?.work_items]);
 
   // Build unified reviewer list: merge requested reviewers + reviews
   const unifiedReviewers = useMemo(() => {
@@ -468,16 +473,28 @@ export function PRDetailPanel({ repoId, prNumber, onClose, showRepoLink = true }
                 {addWorkItemOpen && (
                   <div className={styles.addReviewerMenu}>
                     <div className={styles.addReviewerSearchWrap}>
-                      <input
-                        ref={workItemSearchRef}
-                        className={styles.addReviewerSearchInput}
-                        placeholder="Filter by ID or title..."
-                        value={workItemSearch}
-                        onChange={(e) => setWorkItemSearch(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Escape') setAddWorkItemOpen(false);
-                        }}
-                      />
+                      <div className={styles.workItemSearchRow}>
+                        <input
+                          ref={workItemSearchRef}
+                          className={styles.addReviewerSearchInput}
+                          placeholder="Filter by ID or title..."
+                          value={workItemSearch}
+                          onChange={(e) => setWorkItemSearch(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Escape') {
+                              setAddWorkItemOpen(false);
+                              setShowAllTypes(false);
+                            }
+                          }}
+                        />
+                        <button
+                          className={`${styles.typeFilterToggle} ${showAllTypes ? styles.typeFilterToggleActive : ''}`}
+                          onClick={() => setShowAllTypes(!showAllTypes)}
+                          title={showAllTypes ? 'Showing all types' : 'Showing Tasks & Bugs only'}
+                        >
+                          All types
+                        </button>
+                      </div>
                     </div>
                     {workItemsLoading && (
                       <div className={styles.addReviewerEmpty}>Loading...</div>
