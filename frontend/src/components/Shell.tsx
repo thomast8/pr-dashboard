@@ -12,6 +12,7 @@ import { SpaceManager } from './SpaceManager';
 import { Tooltip } from './Tooltip';
 import { GitHubIcon } from './GitHubIcon';
 import { DevUserSwitcher } from './DevUserSwitcher';
+import { VersionBadge } from './VersionBadge';
 import styles from './Shell.module.css';
 
 export function Shell() {
@@ -84,7 +85,7 @@ export function Shell() {
   return (
     <div className={styles.shell}>
       <header className={styles.header}>
-        <Link to="/" className={styles.logo}>PR Dashboard</Link>
+        <Link to="/" className={styles.logo}>PR Dashboard<VersionBadge /></Link>
         {!connected && (
           <span
             style={{

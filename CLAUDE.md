@@ -79,6 +79,14 @@ cd frontend && npm run build     # Production build
 cd frontend && npx tsc --noEmit  # Type check
 ```
 
+## Releasing
+
+When creating a new release, update the version in these places:
+- `backend/pyproject.toml` - `version` field
+- `backend/src/main.py` - FastAPI `version` kwarg (should match pyproject.toml)
+
+The in-app version badge (`/api/version`) reads from `pyproject.toml` at startup and fetches release notes from the GitHub Releases API.
+
 ## Environment Variables
 
 See `.env.example` for all options. Key ones:
