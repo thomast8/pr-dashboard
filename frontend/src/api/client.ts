@@ -238,6 +238,14 @@ export interface VersionInfo {
   published_at: string | null;
 }
 
+export interface ReleaseInfo {
+  release_notes: string | null;
+  release_url: string | null;
+  release_name: string | null;
+  published_at: string | null;
+  tag_name: string | null;
+}
+
 // ── API functions ────────────────────────────────
 
 export const api = {
@@ -397,6 +405,7 @@ export const api = {
 
   // Version
   getVersion: () => request<VersionInfo>('/api/version'),
+  getReleases: () => request<ReleaseInfo[]>('/api/version/releases'),
 
   // Auth
   login: (password: string) =>
