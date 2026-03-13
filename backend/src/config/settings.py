@@ -79,6 +79,10 @@ class Settings(BaseSettings):
         default="change-me-in-production",
         description="Secret key for signing session cookies",
     )
+    encryption_key: str | None = Field(
+        default=None,
+        description="Dedicated key for Fernet token encryption; falls back to secret_key",
+    )
     session_max_age_seconds: int = Field(
         default=7 * 24 * 3600, description="Session cookie lifetime"
     )

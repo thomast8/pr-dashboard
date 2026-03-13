@@ -1,8 +1,13 @@
 """Pydantic response/request schemas for the API."""
 
+import ipaddress
+import socket
 from datetime import datetime
+from urllib.parse import urlparse
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
+
+from src.config.settings import settings
 
 # ── Spaces ───────────────────────────────────────────────────
 
@@ -242,10 +247,56 @@ class ReviewerUpdate(BaseModel):
 # ── ADO Accounts ────────────────────────────────────────────
 
 
+_ALLOWED_ADO_DOMAINS = {
+    "dev.azure.com",
+    "visualstudio.com",
+}
+
+
+def _is_private_ip(hostname: str) -> bool:
+    """Check if a hostname resolves to a private/reserved IP address."""
+    try:
+        addr_info = socket.getaddrinfo(hostname, None)
+        for _, _, _, _, sockaddr in addr_info:
+            ip = ipaddress.ip_address(sockaddr[0])
+            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+                return True
+    except socket.gaierror:
+        pass
+    return False
+
+
 class AdoAccountCreate(BaseModel):
     token: str
     org_url: str
     project: str
+
+    @field_validator("org_url")
+    @classmethod
+    def validate_org_url(cls, v: str) -> str:
+        parsed = urlparse(v.rstrip("/"))
+
+        # Require https in production, allow http in dev mode
+        allowed_schemes = {"https", "http"} if settings.dev_mode else {"https"}
+        if parsed.scheme not in allowed_schemes:
+            raise ValueError(f"org_url must use {' or '.join(allowed_schemes)} scheme")
+
+        if not parsed.hostname:
+            raise ValueError("org_url must have a valid hostname")
+
+        # Block private/reserved IP ranges (SSRF protection)
+        if _is_private_ip(parsed.hostname):
+            raise ValueError("org_url must not point to a private or reserved IP address")
+
+        # Restrict to known ADO domains
+        hostname = parsed.hostname.lower()
+        if not any(hostname == d or hostname.endswith(f".{d}") for d in _ALLOWED_ADO_DOMAINS):
+            raise ValueError(
+                f"org_url must be a recognized Azure DevOps domain "
+                f"({', '.join(sorted(_ALLOWED_ADO_DOMAINS))})"
+            )
+
+        return v
 
 
 class AdoAccountOut(BaseModel):

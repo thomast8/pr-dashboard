@@ -1,5 +1,8 @@
 """API routes for managing linked Azure DevOps accounts."""
 
+import base64
+
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
 from loguru import logger
 from sqlalchemy import select
@@ -12,6 +15,27 @@ from src.models.tables import AdoAccount
 from src.services.crypto import encrypt_token
 
 router = APIRouter(prefix="/api/ado-accounts", tags=["ado-accounts"])
+
+
+async def _validate_ado_token(org_url: str, token: str) -> None:
+    """Validate an ADO PAT by calling the projects API.
+
+    Isolates the plaintext token in its own stack frame so it won't
+    appear in tracebacks from the calling function.
+    """
+    encoded = base64.b64encode(f":{token}".encode()).decode()
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.get(
+                f"{org_url}/_apis/projects?api-version=7.1",
+                headers={"Authorization": f"Basic {encoded}"},
+            )
+            resp.raise_for_status()
+    except Exception as exc:
+        logger.warning(f"ADO token validation failed for {org_url}: {exc}")
+        raise HTTPException(
+            status_code=400, detail="Invalid token or ADO organization unreachable"
+        ) from None
 
 
 def _account_to_out(account: AdoAccount) -> AdoAccountOut:
@@ -33,7 +57,7 @@ async def list_ado_accounts(
     """List ADO accounts linked to the current user."""
     user_id = get_github_user_id(request)
     if not user_id:
-        return []
+        raise HTTPException(status_code=401, detail="Not authenticated")
 
     accounts = (
         (
@@ -64,45 +88,31 @@ async def link_ado_account(
         raise HTTPException(status_code=401, detail="Not authenticated")
 
     org_url = body.org_url.rstrip("/")
+    project = body.project
 
-    # Validate token by listing projects
-    import base64
-
-    import httpx
-
-    encoded = base64.b64encode(f":{body.token}".encode()).decode()
-    try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            resp = await client.get(
-                f"{org_url}/_apis/projects?api-version=7.1",
-                headers={"Authorization": f"Basic {encoded}"},
-            )
-            resp.raise_for_status()
-    except Exception as exc:
-        logger.warning(f"ADO token validation failed for {org_url}: {exc}")
-        raise HTTPException(
-            status_code=400, detail="Invalid token or ADO organization unreachable"
-        ) from exc
+    # Validate token, encrypt it, then discard the plaintext immediately
+    await _validate_ado_token(org_url, body.token)
+    encrypted = encrypt_token(body.token)
+    del body  # Remove plaintext token from this frame
 
     # Check if this org_url+project combo already exists for the user
     result = await session.execute(
         select(AdoAccount).where(
             AdoAccount.user_id == user_id,
             AdoAccount.org_url == org_url,
-            AdoAccount.project == body.project,
+            AdoAccount.project == project,
         )
     )
     account = result.scalar_one_or_none()
 
-    encrypted = encrypt_token(body.token)
-    display_name = f"{org_url.split('/')[-1]} / {body.project}"
+    display_name = f"{org_url.split('/')[-1]} / {project}"
 
     if account is None:
         account = AdoAccount(
             user_id=user_id,
             encrypted_token=encrypted,
             org_url=org_url,
-            project=body.project,
+            project=project,
             display_name=display_name,
         )
         session.add(account)
