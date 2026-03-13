@@ -419,7 +419,7 @@ export function PRDetailPanel({ repoId, prNumber, onClose, showRepoLink = true }
           {adoStatus?.configured && (
             <section className={styles.section}>
               <Tooltip text="Azure DevOps work items linked to this PR" position="right">
-                <h3>Work Items ({pr.work_items?.length || 0})</h3>
+                <h3>Work Items ({pr.work_items?.length || 0}) <span className="betaBadge">Beta</span></h3>
               </Tooltip>
               {(pr.work_items?.length || 0) > 0 ? (
                 <div className={styles.workItemList}>

@@ -213,7 +213,7 @@ export function SpaceManager({ onClose }: Props) {
             <>
               <div className={styles.accountSection} style={{ marginTop: '1.5rem' }}>
                 <div className={styles.accountHeader}>
-                  <span className={styles.accountLogin}>Azure DevOps</span>
+                  <span className={styles.accountLogin}>Azure DevOps <span className="betaBadge">Beta</span></span>
                 </div>
                 {adoAccounts && adoAccounts.length > 0 ? (
                   adoAccounts.map((ado) => (
@@ -249,7 +249,7 @@ export function SpaceManager({ onClose }: Props) {
                     className={`${styles.linkBtn} ${styles.linkBtnSecondary}`}
                     onClick={() => setShowAdoForm(true)}
                   >
-                    + Link ADO Account
+                    + Link ADO Account <span className="betaBadge">Beta</span>
                     <span className={styles.linkBtnHint}>for Azure DevOps work item integration</span>
                   </button>
                 </div>
