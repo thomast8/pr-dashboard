@@ -100,16 +100,10 @@ export function Shell() {
         )}
         <nav className={styles.nav}>
           <Tooltip text="View all tracked repositories" position="bottom">
-            <a href="/" className={isReposSection ? styles.active : ''} onClick={handleReposClick}>Repos</a>
+            <a href="/" className={`${styles.navLink} ${isReposSection ? styles.navLinkActive : ''}`} onClick={handleReposClick}>Repos</a>
           </Tooltip>
           <Tooltip text="Cross-repo priority queue for review and merge order" position="bottom">
-            <Link to="/prioritise" className={isPrioritize ? styles.active : ''}>Prioritise</Link>
-          </Tooltip>
-          <Tooltip text="Manage GitHub connections" position="bottom">
-            <button className={styles.teamBtn} onClick={() => setShowSpaces(true)}>Spaces</button>
-          </Tooltip>
-          <Tooltip text="Manage team members and assignments" position="bottom">
-            <button className={styles.teamBtn} onClick={() => setShowTeam(true)}>Team</button>
+            <Link to="/prioritise" className={`${styles.navLink} ${isPrioritize ? styles.navLinkActive : ''}`}>Prioritise</Link>
           </Tooltip>
         </nav>
         <div className={styles.spacer} />
@@ -145,18 +139,27 @@ export function Shell() {
 
                   <div className={styles.userMenuDivider} />
 
+                  <button
+                    className={styles.userMenuItem}
+                    onClick={() => { setShowUserMenu(false); setShowSpaces(true); }}
+                  >
+                    Spaces
+                  </button>
+                  <button
+                    className={styles.userMenuItem}
+                    onClick={() => { setShowUserMenu(false); setShowTeam(true); }}
+                  >
+                    Team
+                  </button>
+
+                  <div className={styles.userMenuDivider} />
+
                   {oauthConfigured && (
                     <button className={styles.userMenuItem} onClick={handleLinkOAuth}>
                       <GitHubIcon size={14} />
                       Link another account
                     </button>
                   )}
-                  <button
-                    className={styles.userMenuItem}
-                    onClick={() => { setShowUserMenu(false); setShowSpaces(true); }}
-                  >
-                    Manage accounts & spaces
-                  </button>
 
                   <div className={styles.userMenuDivider} />
 

@@ -28,6 +28,7 @@ export function RepoView() {
 
   const [renamingStack, setRenamingStack] = useState(false);
   const [renameValue, setRenameValue] = useState('');
+  const [showMoreFilters, setShowMoreFilters] = useState(false);
   const [authorDropdownOpen, setAuthorDropdownOpen] = useState(false);
   const [stateDropdownOpen, setStateDropdownOpen] = useState(false);
   const [reviewerDropdownOpen, setReviewerDropdownOpen] = useState(false);
@@ -358,10 +359,23 @@ export function RepoView() {
             </button>
           </Tooltip>
           </div>
+          {filtered.length > 0 && (
+            <div className={styles.titleStats}>
+              <span>{filtered.filter((p: PRSummary) => p.state === 'open').length} open</span>
+              {(() => {
+                const approved = filtered.filter((p: PRSummary) => p.review_state === 'approved').length;
+                return approved > 0 ? <span style={{ color: 'var(--accent-green)' }}>{approved} approved</span> : null;
+              })()}
+              {(() => {
+                const failing = filtered.filter((p: PRSummary) => p.ci_status === 'failure').length;
+                return failing > 0 ? <span style={{ color: 'var(--accent-red)' }}>{failing} failing</span> : null;
+              })()}
+            </div>
+          )}
         </div>
 
         <div className={styles.filters}>
-          {/* 1. State */}
+          {/* Primary filters: State, Author, CI */}
           <Tooltip text="Filters PRs by review state or merged status" position="bottom" disabled={stateDropdownOpen}>
             <div className={styles.filterDropdown} ref={stateDropdownRef}>
               <button
@@ -388,7 +402,6 @@ export function RepoView() {
             </div>
           </Tooltip>
 
-          {/* 2. Author */}
           <Tooltip text="Dims non-matching PR cards" position="bottom" disabled={authorDropdownOpen}>
             <div className={styles.filterDropdown} ref={authorDropdownRef}>
               <button
@@ -453,77 +466,6 @@ export function RepoView() {
             </div>
           </Tooltip>
 
-          {/* 3. Reviewer */}
-          <Tooltip text="Dims PRs not requesting this reviewer" position="bottom" disabled={reviewerDropdownOpen}>
-            <div className={styles.filterDropdown} ref={reviewerDropdownRef}>
-              <button
-                className={styles.filterTrigger}
-                onClick={() => setReviewerDropdownOpen(!reviewerDropdownOpen)}
-              >
-                {icons.reviewer}
-                {(() => {
-                  if (reviewerFilter === '__me__') {
-                    return (
-                      <span className={styles.filterOption}>
-                        {currentUser?.avatar_url && <img src={currentUser.avatar_url} alt="Me" className={styles.filterAvatar} />}
-                        <span>Me</span>
-                      </span>
-                    );
-                  }
-                  if (reviewerFilter) {
-                    const info = authorInfoMap.get(reviewerFilter);
-                    const prData = repoPeopleMap.get(reviewerFilter);
-                    const avatar = info?.avatar ?? prData?.avatar ?? null;
-                    const displayName = info?.displayName ?? reviewerFilter;
-                    return (
-                      <span className={styles.filterOption}>
-                        {avatar && <img src={avatar} alt={reviewerFilter} className={styles.filterAvatar} />}
-                        <span>{displayName}</span>
-                      </span>
-                    );
-                  }
-                  return <span>All reviewers</span>;
-                })()}
-                <span className={styles.filterChevron}>{reviewerDropdownOpen ? '\u25B4' : '\u25BE'}</span>
-              </button>
-              {reviewerDropdownOpen && (
-                <div className={styles.filterMenu}>
-                  <div
-                    className={`${styles.filterMenuItem} ${!reviewerFilter ? styles.filterMenuItemActive : ''}`}
-                    onClick={() => { setFilter('reviewerFilter',''); setReviewerDropdownOpen(false); }}
-                  >
-                    <span>All reviewers</span>
-                  </div>
-                  {currentUser && (
-                    <div
-                      className={`${styles.filterMenuItem} ${reviewerFilter === '__me__' ? styles.filterMenuItemActive : ''}`}
-                      onClick={() => { setFilter('reviewerFilter','__me__'); setReviewerDropdownOpen(false); }}
-                    >
-                      {currentUser.avatar_url && <img src={currentUser.avatar_url} alt="Me" className={styles.filterAvatar} />}
-                      <span>Me</span>
-                    </div>
-                  )}
-                  {reviewers.map((r) => {
-                    const info = authorInfoMap.get(r.login);
-                    const avatar = info?.avatar ?? r.avatar ?? null;
-                    const displayName = info?.displayName ?? r.login;
-                    return (
-                      <div
-                        key={r.login}
-                        className={`${styles.filterMenuItem} ${reviewerFilter === r.login ? styles.filterMenuItemActive : ''}`}
-                        onClick={() => { setFilter('reviewerFilter',r.login); setReviewerDropdownOpen(false); }}
-                      >
-                        {avatar && <img src={avatar} alt={r.login} className={styles.filterAvatar} />}
-                        <span>{displayName}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </Tooltip>
-
-          {/* 4. CI */}
           <Tooltip text="Hides non-matching PRs" position="bottom" disabled={ciDropdownOpen}>
             <div className={styles.filterDropdown} ref={ciDropdownRef}>
               <button
@@ -550,178 +492,184 @@ export function RepoView() {
             </div>
           </Tooltip>
 
-          {/* 5. Target branch */}
-          <Tooltip text="Filter PRs by target branch" position="bottom" disabled={branchDropdownOpen}>
-            <div className={styles.filterDropdown} ref={branchDropdownRef}>
-              <button
-                className={styles.filterTrigger}
-                onClick={() => setBranchDropdownOpen(!branchDropdownOpen)}
-              >
-                {icons.branch}
-                <span>{branchFilter === 'main' ? 'Targeting main' : 'All targets'}</span>
-                <span className={styles.filterChevron}>{branchDropdownOpen ? '\u25B4' : '\u25BE'}</span>
-              </button>
-              {branchDropdownOpen && (
-                <div className={styles.filterMenu}>
-                  <div
-                    className={`${styles.filterMenuItem} ${branchFilter === '' ? styles.filterMenuItemActive : ''}`}
-                    onClick={() => { setFilter('branchFilter',''); setBranchDropdownOpen(false); }}
-                  >
-                    <span>All targets</span>
-                  </div>
-                  <div
-                    className={`${styles.filterMenuItem} ${branchFilter === 'main' ? styles.filterMenuItemActive : ''}`}
-                    onClick={() => { setFilter('branchFilter','main'); setBranchDropdownOpen(false); }}
-                  >
-                    <span>Targeting main</span>
-                  </div>
-                </div>
-              )}
-            </div>
-          </Tooltip>
-
-          {/* 6. Priority */}
-          <Tooltip text="Filter PRs by manual priority" position="bottom" disabled={priorityDropdownOpen}>
-            <div className={styles.filterDropdown} ref={priorityDropdownRef}>
-              <button
-                className={styles.filterTrigger}
-                onClick={() => setPriorityDropdownOpen(!priorityDropdownOpen)}
-              >
-                {icons.priority}
-                <span>{priorityOptions.find((o) => o.value === priorityFilter)?.label ?? 'All priorities'}</span>
-                <span className={styles.filterChevron}>{priorityDropdownOpen ? '\u25B4' : '\u25BE'}</span>
-              </button>
-              {priorityDropdownOpen && (
-                <div className={styles.filterMenu}>
-                  {priorityOptions.map((o) => (
+          {/* Promoted secondary filters (show when active) */}
+          {reviewerFilter && (
+            <Tooltip text="Dims PRs not requesting this reviewer" position="bottom" disabled={reviewerDropdownOpen}>
+              <div className={styles.filterDropdown} ref={reviewerDropdownRef}>
+                <button
+                  className={styles.filterTrigger}
+                  onClick={() => setReviewerDropdownOpen(!reviewerDropdownOpen)}
+                >
+                  {icons.reviewer}
+                  {(() => {
+                    if (reviewerFilter === '__me__') {
+                      return (
+                        <span className={styles.filterOption}>
+                          {currentUser?.avatar_url && <img src={currentUser.avatar_url} alt="Me" className={styles.filterAvatar} />}
+                          <span>Me</span>
+                        </span>
+                      );
+                    }
+                    const info = authorInfoMap.get(reviewerFilter);
+                    const prData = repoPeopleMap.get(reviewerFilter);
+                    const avatar = info?.avatar ?? prData?.avatar ?? null;
+                    const displayName = info?.displayName ?? reviewerFilter;
+                    return (
+                      <span className={styles.filterOption}>
+                        {avatar && <img src={avatar} alt={reviewerFilter} className={styles.filterAvatar} />}
+                        <span>{displayName}</span>
+                      </span>
+                    );
+                  })()}
+                  <span className={styles.filterChevron}>{reviewerDropdownOpen ? '\u25B4' : '\u25BE'}</span>
+                </button>
+                {reviewerDropdownOpen && (
+                  <div className={styles.filterMenu}>
                     <div
-                      key={o.value}
-                      className={`${styles.filterMenuItem} ${priorityFilter === o.value ? styles.filterMenuItemActive : ''}`}
-                      onClick={() => { setFilter('priorityFilter',o.value); setPriorityDropdownOpen(false); }}
+                      className={`${styles.filterMenuItem} ${!reviewerFilter ? styles.filterMenuItemActive : ''}`}
+                      onClick={() => { setFilter('reviewerFilter',''); setReviewerDropdownOpen(false); }}
                     >
-                      <span>{o.label}</span>
+                      <span>All reviewers</span>
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </Tooltip>
-
-          {/* 7. Label */}
-          <Tooltip text="Dims PRs without this label" position="bottom" disabled={labelDropdownOpen}>
-            <div className={styles.filterDropdown} ref={labelDropdownRef}>
-              <button
-                className={styles.filterTrigger}
-                onClick={() => setLabelDropdownOpen(!labelDropdownOpen)}
-              >
-                {icons.label}
-                <span>{labelFilter ? labelFilter : 'All labels'}</span>
-                <span className={styles.filterChevron}>{labelDropdownOpen ? '\u25B4' : '\u25BE'}</span>
-              </button>
-              {labelDropdownOpen && (
-                <div className={styles.filterMenu}>
-                  <div
-                    className={`${styles.filterMenuItem} ${!labelFilter ? styles.filterMenuItemActive : ''}`}
-                    onClick={() => { setFilter('labelFilter',''); setLabelDropdownOpen(false); }}
-                  >
-                    <span>All labels</span>
+                    {currentUser && (
+                      <div
+                        className={`${styles.filterMenuItem} ${reviewerFilter === '__me__' ? styles.filterMenuItemActive : ''}`}
+                        onClick={() => { setFilter('reviewerFilter','__me__'); setReviewerDropdownOpen(false); }}
+                      >
+                        {currentUser.avatar_url && <img src={currentUser.avatar_url} alt="Me" className={styles.filterAvatar} />}
+                        <span>Me</span>
+                      </div>
+                    )}
+                    {reviewers.map((r) => {
+                      const info = authorInfoMap.get(r.login);
+                      const avatar = info?.avatar ?? r.avatar ?? null;
+                      const displayName = info?.displayName ?? r.login;
+                      return (
+                        <div
+                          key={r.login}
+                          className={`${styles.filterMenuItem} ${reviewerFilter === r.login ? styles.filterMenuItemActive : ''}`}
+                          onClick={() => { setFilter('reviewerFilter',r.login); setReviewerDropdownOpen(false); }}
+                        >
+                          {avatar && <img src={avatar} alt={r.login} className={styles.filterAvatar} />}
+                          <span>{displayName}</span>
+                        </div>
+                      );
+                    })}
                   </div>
-                  {ALLOWED_LABELS.map((lbl) => (
-                    <div
-                      key={lbl.name}
-                      className={`${styles.filterMenuItem} ${labelFilter === lbl.name ? styles.filterMenuItemActive : ''}`}
-                      onClick={() => { setFilter('labelFilter', lbl.name); setLabelDropdownOpen(false); }}
-                    >
-                      <span
-                        style={{
-                          display: 'inline-block',
-                          width: 8,
-                          height: 8,
-                          borderRadius: '50%',
-                          backgroundColor: `#${lbl.color}`,
-                          marginRight: 6,
-                        }}
-                      />
-                      <span>{lbl.name}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </Tooltip>
+                )}
+              </div>
+            </Tooltip>
+          )}
 
-          {/* 8. Stack */}
-          <Tooltip text="Highlight a stack of dependent PRs" position="bottom" disabled={stackDropdownOpen}>
+          {branchFilter && (
+            <Tooltip text="Filter PRs by target branch" position="bottom" disabled={branchDropdownOpen}>
+              <div className={styles.filterDropdown} ref={branchDropdownRef}>
+                <button className={styles.filterTrigger} onClick={() => setBranchDropdownOpen(!branchDropdownOpen)}>
+                  {icons.branch}
+                  <span>Targeting main</span>
+                  <span className={styles.filterChevron}>{branchDropdownOpen ? '\u25B4' : '\u25BE'}</span>
+                </button>
+                {branchDropdownOpen && (
+                  <div className={styles.filterMenu}>
+                    <div className={`${styles.filterMenuItem} ${branchFilter === '' ? styles.filterMenuItemActive : ''}`} onClick={() => { setFilter('branchFilter',''); setBranchDropdownOpen(false); }}><span>All targets</span></div>
+                    <div className={`${styles.filterMenuItem} ${branchFilter === 'main' ? styles.filterMenuItemActive : ''}`} onClick={() => { setFilter('branchFilter','main'); setBranchDropdownOpen(false); }}><span>Targeting main</span></div>
+                  </div>
+                )}
+              </div>
+            </Tooltip>
+          )}
+
+          {priorityFilter && (
+            <Tooltip text="Filter PRs by manual priority" position="bottom" disabled={priorityDropdownOpen}>
+              <div className={styles.filterDropdown} ref={priorityDropdownRef}>
+                <button className={styles.filterTrigger} onClick={() => setPriorityDropdownOpen(!priorityDropdownOpen)}>
+                  {icons.priority}
+                  <span>{priorityOptions.find((o) => o.value === priorityFilter)?.label ?? 'All priorities'}</span>
+                  <span className={styles.filterChevron}>{priorityDropdownOpen ? '\u25B4' : '\u25BE'}</span>
+                </button>
+                {priorityDropdownOpen && (
+                  <div className={styles.filterMenu}>
+                    {priorityOptions.map((o) => (
+                      <div key={o.value} className={`${styles.filterMenuItem} ${priorityFilter === o.value ? styles.filterMenuItemActive : ''}`} onClick={() => { setFilter('priorityFilter',o.value); setPriorityDropdownOpen(false); }}><span>{o.label}</span></div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </Tooltip>
+          )}
+
+          {labelFilter && (
+            <Tooltip text="Dims PRs without this label" position="bottom" disabled={labelDropdownOpen}>
+              <div className={styles.filterDropdown} ref={labelDropdownRef}>
+                <button className={styles.filterTrigger} onClick={() => setLabelDropdownOpen(!labelDropdownOpen)}>
+                  {icons.label}
+                  <span>{labelFilter}</span>
+                  <span className={styles.filterChevron}>{labelDropdownOpen ? '\u25B4' : '\u25BE'}</span>
+                </button>
+                {labelDropdownOpen && (
+                  <div className={styles.filterMenu}>
+                    <div className={`${styles.filterMenuItem} ${!labelFilter ? styles.filterMenuItemActive : ''}`} onClick={() => { setFilter('labelFilter',''); setLabelDropdownOpen(false); }}><span>All labels</span></div>
+                    {ALLOWED_LABELS.map((lbl) => (
+                      <div key={lbl.name} className={`${styles.filterMenuItem} ${labelFilter === lbl.name ? styles.filterMenuItemActive : ''}`} onClick={() => { setFilter('labelFilter', lbl.name); setLabelDropdownOpen(false); }}>
+                        <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', backgroundColor: `#${lbl.color}`, marginRight: 6 }} />
+                        <span>{lbl.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </Tooltip>
+          )}
+
+          {stackFilter !== null && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              {renamingStack && stackFilter ? (
+              {renamingStack ? (
                 <input
                   ref={renameInputRef}
                   className={styles.renameInput}
                   value={renameValue}
                   onChange={(e) => setRenameValue(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && renameValue.trim()) {
-                      renameMutation.mutate({ stackId: stackFilter, name: renameValue.trim() });
-                    } else if (e.key === 'Escape') {
-                      setRenamingStack(false);
-                    }
+                    if (e.key === 'Enter' && renameValue.trim()) { renameMutation.mutate({ stackId: stackFilter, name: renameValue.trim() }); }
+                    else if (e.key === 'Escape') { setRenamingStack(false); }
                   }}
-                  onBlur={() => {
-                    if (renameValue.trim() && stackFilter) {
-                      renameMutation.mutate({ stackId: stackFilter, name: renameValue.trim() });
-                    } else {
-                      setRenamingStack(false);
-                    }
-                  }}
+                  onBlur={() => { if (renameValue.trim() && stackFilter) { renameMutation.mutate({ stackId: stackFilter, name: renameValue.trim() }); } else { setRenamingStack(false); } }}
                   autoFocus
                 />
               ) : (
-                <div className={styles.filterDropdown} ref={stackDropdownRef}>
-                  <button
-                    className={styles.filterTrigger}
-                    onClick={() => setStackDropdownOpen(!stackDropdownOpen)}
-                  >
-                    {icons.stack}
-                    <span>{stackFilter ? ((stacks || []).find((s) => s.id === stackFilter)?.name || `#${stackFilter}`) : 'All stacks'}</span>
-                    <span className={styles.filterChevron}>{stackDropdownOpen ? '\u25B4' : '\u25BE'}</span>
-                  </button>
-                  {stackDropdownOpen && (
-                    <div className={styles.filterMenu}>
-                      <div
-                        className={`${styles.filterMenuItem} ${stackFilter === null ? styles.filterMenuItemActive : ''}`}
-                        onClick={() => { setFilter('stackFilter',null); setStackDropdownOpen(false); }}
-                      >
-                        <span>All PRs</span>
+                <Tooltip text="Highlight a stack of dependent PRs" position="bottom" disabled={stackDropdownOpen}>
+                  <div className={styles.filterDropdown} ref={stackDropdownRef}>
+                    <button className={styles.filterTrigger} onClick={() => setStackDropdownOpen(!stackDropdownOpen)}>
+                      {icons.stack}
+                      <span>{(stacks || []).find((s) => s.id === stackFilter)?.name || `#${stackFilter}`}</span>
+                      <span className={styles.filterChevron}>{stackDropdownOpen ? '\u25B4' : '\u25BE'}</span>
+                    </button>
+                    {stackDropdownOpen && (
+                      <div className={styles.filterMenu}>
+                        <div className={`${styles.filterMenuItem} ${stackFilter === null ? styles.filterMenuItemActive : ''}`} onClick={() => { setFilter('stackFilter',null); setStackDropdownOpen(false); }}><span>All PRs</span></div>
+                        {(stacks || []).map((s) => (
+                          <div key={s.id} className={`${styles.filterMenuItem} ${stackFilter === s.id ? styles.filterMenuItemActive : ''}`} onClick={() => { setFilter('stackFilter',s.id); setStackDropdownOpen(false); }}><span>{s.name || `#${s.id}`} ({s.members.length} PRs)</span></div>
+                        ))}
                       </div>
-                      {(stacks || []).map((s) => (
-                        <div
-                          key={s.id}
-                          className={`${styles.filterMenuItem} ${stackFilter === s.id ? styles.filterMenuItemActive : ''}`}
-                          onClick={() => { setFilter('stackFilter',s.id); setStackDropdownOpen(false); }}
-                        >
-                          <span>{s.name || `#${s.id}`} ({s.members.length} PRs)</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                    )}
+                  </div>
+                </Tooltip>
               )}
-              {stackFilter && !renamingStack && (
-                <button
-                  className={styles.syncBtn}
-                  style={{ padding: '2px 6px', fontSize: '0.85rem' }}
-                  title="Rename stack"
-                  onClick={() => {
-                    const selected = (stacks || []).find((s) => s.id === stackFilter);
-                    setRenameValue(selected?.name || '');
-                    setRenamingStack(true);
-                  }}
-                >
+              {!renamingStack && (
+                <button className={styles.syncBtn} style={{ padding: '2px 6px', fontSize: '0.85rem' }} title="Rename stack" onClick={() => { const selected = (stacks || []).find((s) => s.id === stackFilter); setRenameValue(selected?.name || ''); setRenamingStack(true); }}>
                   ✏
                 </button>
               )}
             </div>
-          </Tooltip>
+          )}
+
+          {/* + Filter button for secondary filters */}
+          <button
+            className={`${styles.moreFiltersBtn} ${showMoreFilters ? styles.moreFiltersBtnActive : ''}`}
+            onClick={() => setShowMoreFilters(!showMoreFilters)}
+          >
+            + Filter
+          </button>
 
           {/* Clear all filters */}
           {hasActiveFilters && (
@@ -731,6 +679,125 @@ export function RepoView() {
             </button>
           )}
         </div>
+
+        {/* Expanded secondary filters */}
+        {showMoreFilters && (
+          <div className={styles.filters}>
+            {!reviewerFilter && (
+              <Tooltip text="Dims PRs not requesting this reviewer" position="bottom" disabled={reviewerDropdownOpen}>
+                <div className={styles.filterDropdown} ref={reviewerDropdownRef}>
+                  <button className={styles.filterTrigger} onClick={() => setReviewerDropdownOpen(!reviewerDropdownOpen)}>
+                    {icons.reviewer}
+                    <span>All reviewers</span>
+                    <span className={styles.filterChevron}>{reviewerDropdownOpen ? '\u25B4' : '\u25BE'}</span>
+                  </button>
+                  {reviewerDropdownOpen && (
+                    <div className={styles.filterMenu}>
+                      <div className={`${styles.filterMenuItem} ${!reviewerFilter ? styles.filterMenuItemActive : ''}`} onClick={() => { setFilter('reviewerFilter',''); setReviewerDropdownOpen(false); }}><span>All reviewers</span></div>
+                      {currentUser && (
+                        <div className={`${styles.filterMenuItem} ${reviewerFilter === '__me__' ? styles.filterMenuItemActive : ''}`} onClick={() => { setFilter('reviewerFilter','__me__'); setReviewerDropdownOpen(false); }}>
+                          {currentUser.avatar_url && <img src={currentUser.avatar_url} alt="Me" className={styles.filterAvatar} />}
+                          <span>Me</span>
+                        </div>
+                      )}
+                      {reviewers.map((r) => {
+                        const info = authorInfoMap.get(r.login);
+                        const avatar = info?.avatar ?? r.avatar ?? null;
+                        const displayName = info?.displayName ?? r.login;
+                        return (
+                          <div key={r.login} className={`${styles.filterMenuItem} ${reviewerFilter === r.login ? styles.filterMenuItemActive : ''}`} onClick={() => { setFilter('reviewerFilter',r.login); setReviewerDropdownOpen(false); }}>
+                            {avatar && <img src={avatar} alt={r.login} className={styles.filterAvatar} />}
+                            <span>{displayName}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </Tooltip>
+            )}
+
+            {!branchFilter && (
+              <Tooltip text="Filter PRs by target branch" position="bottom" disabled={branchDropdownOpen}>
+                <div className={styles.filterDropdown} ref={branchDropdownRef}>
+                  <button className={styles.filterTrigger} onClick={() => setBranchDropdownOpen(!branchDropdownOpen)}>
+                    {icons.branch}
+                    <span>All targets</span>
+                    <span className={styles.filterChevron}>{branchDropdownOpen ? '\u25B4' : '\u25BE'}</span>
+                  </button>
+                  {branchDropdownOpen && (
+                    <div className={styles.filterMenu}>
+                      <div className={`${styles.filterMenuItem} ${branchFilter === '' ? styles.filterMenuItemActive : ''}`} onClick={() => { setFilter('branchFilter',''); setBranchDropdownOpen(false); }}><span>All targets</span></div>
+                      <div className={`${styles.filterMenuItem} ${branchFilter === 'main' ? styles.filterMenuItemActive : ''}`} onClick={() => { setFilter('branchFilter','main'); setBranchDropdownOpen(false); }}><span>Targeting main</span></div>
+                    </div>
+                  )}
+                </div>
+              </Tooltip>
+            )}
+
+            {!priorityFilter && (
+              <Tooltip text="Filter PRs by manual priority" position="bottom" disabled={priorityDropdownOpen}>
+                <div className={styles.filterDropdown} ref={priorityDropdownRef}>
+                  <button className={styles.filterTrigger} onClick={() => setPriorityDropdownOpen(!priorityDropdownOpen)}>
+                    {icons.priority}
+                    <span>All priorities</span>
+                    <span className={styles.filterChevron}>{priorityDropdownOpen ? '\u25B4' : '\u25BE'}</span>
+                  </button>
+                  {priorityDropdownOpen && (
+                    <div className={styles.filterMenu}>
+                      {priorityOptions.map((o) => (
+                        <div key={o.value} className={`${styles.filterMenuItem} ${priorityFilter === o.value ? styles.filterMenuItemActive : ''}`} onClick={() => { setFilter('priorityFilter',o.value); setPriorityDropdownOpen(false); }}><span>{o.label}</span></div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </Tooltip>
+            )}
+
+            {!labelFilter && (
+              <Tooltip text="Dims PRs without this label" position="bottom" disabled={labelDropdownOpen}>
+                <div className={styles.filterDropdown} ref={labelDropdownRef}>
+                  <button className={styles.filterTrigger} onClick={() => setLabelDropdownOpen(!labelDropdownOpen)}>
+                    {icons.label}
+                    <span>All labels</span>
+                    <span className={styles.filterChevron}>{labelDropdownOpen ? '\u25B4' : '\u25BE'}</span>
+                  </button>
+                  {labelDropdownOpen && (
+                    <div className={styles.filterMenu}>
+                      <div className={`${styles.filterMenuItem} ${!labelFilter ? styles.filterMenuItemActive : ''}`} onClick={() => { setFilter('labelFilter',''); setLabelDropdownOpen(false); }}><span>All labels</span></div>
+                      {ALLOWED_LABELS.map((lbl) => (
+                        <div key={lbl.name} className={`${styles.filterMenuItem} ${labelFilter === lbl.name ? styles.filterMenuItemActive : ''}`} onClick={() => { setFilter('labelFilter', lbl.name); setLabelDropdownOpen(false); }}>
+                          <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', backgroundColor: `#${lbl.color}`, marginRight: 6 }} />
+                          <span>{lbl.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </Tooltip>
+            )}
+
+            {stackFilter === null && (
+              <Tooltip text="Highlight a stack of dependent PRs" position="bottom" disabled={stackDropdownOpen}>
+                <div className={styles.filterDropdown} ref={stackDropdownRef}>
+                  <button className={styles.filterTrigger} onClick={() => setStackDropdownOpen(!stackDropdownOpen)}>
+                    {icons.stack}
+                    <span>All stacks</span>
+                    <span className={styles.filterChevron}>{stackDropdownOpen ? '\u25B4' : '\u25BE'}</span>
+                  </button>
+                  {stackDropdownOpen && (
+                    <div className={styles.filterMenu}>
+                      <div className={`${styles.filterMenuItem} ${stackFilter === null ? styles.filterMenuItemActive : ''}`} onClick={() => { setFilter('stackFilter',null); setStackDropdownOpen(false); }}><span>All PRs</span></div>
+                      {(stacks || []).map((s) => (
+                        <div key={s.id} className={`${styles.filterMenuItem} ${stackFilter === s.id ? styles.filterMenuItemActive : ''}`} onClick={() => { setFilter('stackFilter',s.id); setStackDropdownOpen(false); }}><span>{s.name || `#${s.id}`} ({s.members.length} PRs)</span></div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </Tooltip>
+            )}
+          </div>
+        )}
 
         {!repo.last_synced_at ? (
           <div className={styles.syncing}>

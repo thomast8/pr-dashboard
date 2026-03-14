@@ -15,9 +15,39 @@
 
 .titleRow {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   margin-bottom: 1rem;
+}
+
+.titleStats {
+  display: flex;
+  gap: 0.75rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.moreFiltersBtn {
+  background: none;
+  border: 1px dashed var(--border-default);
+  border-radius: var(--radius-md);
+  color: var(--text-dim);
+  font-size: 0.75rem;
+  padding: 0.3rem 0.6rem;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color var(--transition-fast), border-color var(--transition-fast);
+}
+.moreFiltersBtn:hover {
+  color: var(--text-primary);
+  border-color: var(--accent-blue);
+}
+.moreFiltersBtnActive {
+  color: var(--accent-blue);
+  border-color: var(--accent-blue);
+  border-style: solid;
 }
 
 .repoNav {

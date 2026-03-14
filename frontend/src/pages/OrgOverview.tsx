@@ -270,9 +270,7 @@ export function OrgOverview() {
 
   return (
     <div>
-      <div className={styles.titleRow}>
-        <h1 className={styles.title}>Tracked Repositories</h1>
-      </div>
+      {/* No title row - cards speak for themselves */}
 
       {!hasContent && (
         <div className={styles.onboarding}>
@@ -344,9 +342,6 @@ export function OrgOverview() {
               {space?.name ?? 'Shared with you'}
             </h2>
             {space && (
-              <span className={styles.spaceSlug}>{space.slug}</span>
-            )}
-            {space && (
               <Tooltip text={`Add repos from ${space.name}`} position="right">
                 <button
                   className={styles.spaceAddBtn}
@@ -372,17 +367,6 @@ export function OrgOverview() {
                 } as React.CSSProperties}
               >
                 <div className={styles.cardHeader}>
-                  <Tooltip text={
-                    !repo.last_synced_at ? 'Not yet synced' :
-                    repo.failing_ci_count > 0 ? 'Some PRs have failing CI' :
-                    repo.stale_pr_count > 0 ? 'Some PRs are stale (no updates in 7 days)' :
-                    'All PRs healthy'
-                  } position="right">
-                    <span
-                      className={styles.healthDot}
-                      style={{ background: repo.last_synced_at ? color : 'var(--text-dim)' }}
-                    />
-                  </Tooltip>
                   <span className={styles.repoName} style={{ color }}>{repo.full_name.split('/').pop()}</span>
                   {user && repo.user_id === user.id && (
                     <Tooltip text={`Click to make ${repo.visibility === 'private' ? 'shared' : 'private'}`} position="top">
@@ -414,48 +398,47 @@ export function OrgOverview() {
                   >
                     x
                   </button>
+                  {repo.last_synced_at && (
+                    <Tooltip text="Last sync with GitHub API" position="top">
+                      <span className={styles.cardTime}>{timeAgo(repo.last_synced_at)}</span>
+                    </Tooltip>
+                  )}
                 </div>
-                <div className={styles.stats}>
-                  <Tooltip text="Total open pull requests" position="bottom">
-                    <div className={styles.stat}>
-                      <span className={styles.statValue}>
-                        {repo.last_synced_at ? repo.open_pr_count : <span className={styles.statPlaceholder} />}
-                      </span>
-                      <span className={styles.statLabel}>Open PRs</span>
-                    </div>
-                  </Tooltip>
-                  <Tooltip text="PRs with at least one failing CI check" position="bottom">
-                    <div className={styles.stat}>
-                      <span className={styles.statValue} style={{ color: repo.last_synced_at && repo.failing_ci_count > 0 ? 'var(--ci-fail)' : undefined }}>
-                        {repo.last_synced_at ? repo.failing_ci_count : <span className={styles.statPlaceholder} />}
-                      </span>
-                      <span className={styles.statLabel}>Failing CI</span>
-                    </div>
-                  </Tooltip>
-                  <Tooltip text="Groups of dependent/stacked PRs" position="bottom">
-                    <div className={styles.stat}>
-                      <span className={styles.statValue}>
-                        {repo.last_synced_at ? repo.stack_count : <span className={styles.statPlaceholder} />}
-                      </span>
-                      <span className={styles.statLabel}>Stacks</span>
-                    </div>
-                  </Tooltip>
-                  <Tooltip text="PRs with no updates in the last 7 days" position="bottom">
-                    <div className={styles.stat}>
-                      <span className={styles.statValue} style={{ color: repo.last_synced_at && repo.stale_pr_count > 0 ? 'var(--ci-pending)' : undefined }}>
-                        {repo.last_synced_at ? repo.stale_pr_count : <span className={styles.statPlaceholder} />}
-                      </span>
-                      <span className={styles.statLabel}>Stale</span>
-                    </div>
-                  </Tooltip>
-                </div>
-                {repo.last_synced_at ? (
-                  <Tooltip text="Last sync with GitHub API" position="top">
-                    <div className={styles.synced}>
-                      Synced {new Date(repo.last_synced_at).toLocaleTimeString()}
-                    </div>
-                  </Tooltip>
-                ) : (
+                {/* Health bar */}
+                {repo.last_synced_at ? (() => {
+                  const open = repo.open_pr_count;
+                  const failing = repo.failing_ci_count;
+                  const stale = repo.stale_pr_count;
+                  const healthy = Math.max(0, open - failing - stale);
+                  const hasProblems = failing > 0 || stale > 0;
+                  return (
+                    <>
+                      <div className={styles.healthBar}>
+                        {open > 0 ? (
+                          <>
+                            {healthy > 0 && <div className={styles.healthSegment} style={{ width: `${(healthy / open) * 100}%`, background: 'var(--accent-green)' }} />}
+                            {failing > 0 && <div className={styles.healthSegment} style={{ width: `${(failing / open) * 100}%`, background: 'var(--accent-red)' }} />}
+                            {stale > 0 && <div className={styles.healthSegment} style={{ width: `${(stale / open) * 100}%`, background: 'var(--accent-amber)' }} />}
+                          </>
+                        ) : (
+                          <div className={styles.healthSegment} style={{ width: '100%', background: 'var(--border-default)' }} />
+                        )}
+                      </div>
+                      <div className={styles.cardStats}>
+                        <span className={styles.cardStatsPrimary}>{open} PRs</span>
+                        {hasProblems ? (
+                          <span className={styles.cardStatsProblems}>
+                            {failing > 0 && <span style={{ color: 'var(--accent-red)' }}>{failing} failing</span>}
+                            {failing > 0 && stale > 0 && <span className={styles.cardStatsSep}> / </span>}
+                            {stale > 0 && <span style={{ color: 'var(--accent-amber)' }}>{stale} stale</span>}
+                          </span>
+                        ) : (
+                          <span className={styles.allClear}>All clear</span>
+                        )}
+                      </div>
+                    </>
+                  );
+                })() : (
                   <div className={styles.syncingLabel}>
                     <span className={styles.syncSpinner} />
                     Syncing...

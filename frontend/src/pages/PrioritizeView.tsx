@@ -403,99 +403,108 @@ export function PrioritizeView() {
   return (
     <div className={styles.container}>
       <div className={styles.content} style={selectedPrNumber ? { marginRight: 396 } : undefined}>
-        <div className={styles.header}>
-          <h2 className={styles.title}>Priority Queue</h2>
-          {summaryBar}
-        </div>
-
-        <div className={styles.filters}>
-          {/* Mode toggle - only when logged in */}
-          {currentUser && (
-            <div className={styles.modeToggle}>
-              <button
-                className={`${styles.modeButton} ${mode === 'review' ? styles.modeButtonActive : ''}`}
-                onClick={() => setMode('review')}
-              >
-                Review Queue
-              </button>
-              <button
-                className={`${styles.modeButton} ${mode === 'owner' ? styles.modeButtonActive : ''}`}
-                onClick={() => setMode('owner')}
-              >
-                My PRs
-              </button>
-              <button
-                className={`${styles.modeButton} ${mode === 'all' ? styles.modeButtonActive : ''}`}
-                onClick={() => setMode('all')}
-              >
+        <div className={styles.tabBar}>
+          <div className={styles.tabBarLeft}>
+            {currentUser ? (
+              <>
+                <button
+                  className={`${styles.tab} ${mode === 'review' ? styles.tabActive : ''}`}
+                  onClick={() => setMode('review')}
+                >
+                  Review Queue
+                </button>
+                <button
+                  className={`${styles.tab} ${mode === 'owner' ? styles.tabActive : ''}`}
+                  onClick={() => setMode('owner')}
+                >
+                  My PRs
+                </button>
+                <button
+                  className={`${styles.tab} ${mode === 'all' ? styles.tabActive : ''}`}
+                  onClick={() => setMode('all')}
+                >
+                  All PRs
+                </button>
+              </>
+            ) : (
+              <span className={styles.tab} style={{ cursor: 'default', color: 'var(--text-primary)', fontWeight: 600, borderBottomColor: 'var(--accent-blue)' }}>
                 All PRs
-              </button>
-            </div>
-          )}
-
-          {/* Actionable only toggle - only in review/owner modes */}
-          {currentUser && activeMode && activeMode !== 'all' && (
-            <button
-              className={`${styles.actionableToggle} ${hideIdlePRs ? styles.actionableToggleActive : ''}`}
-              onClick={() => setHideIdlePRs(!hideIdlePRs)}
-            >
-              <span className={`${styles.toggleDot} ${hideIdlePRs ? styles.toggleDotActive : ''}`} />
-              Actionable only
-            </button>
-          )}
-
-          {/* Repo filter */}
-          <Tooltip text="Filter by repository" position="bottom" disabled={repoDropdownOpen}>
-            <div className={styles.filterDropdown} ref={repoDropdownRef}>
+              </span>
+            )}
+          </div>
+          <div className={styles.tabBarRight}>
+            {/* Actionable filter pill - only in review/owner modes */}
+            {currentUser && activeMode && activeMode !== 'all' && (
               <button
-                className={`${styles.filterTrigger} ${styles.repoTrigger}`}
-                onClick={() => setRepoDropdownOpen(!repoDropdownOpen)}
+                className={`${styles.filterPill} ${hideIdlePRs ? styles.filterPillActive : ''}`}
+                onClick={() => setHideIdlePRs(!hideIdlePRs)}
               >
-                {filterRepoId ? (() => {
-                  const r = (repos || []).find((r: RepoSummary) => r.id === filterRepoId);
-                  const color = filterRepoId ? repoColorMap.get(filterRepoId) : undefined;
-                  return <>
-                    {color && <span className={styles.repoDot} style={{ backgroundColor: color }} />}
-                    <span>{r?.name ?? 'All repos'}</span>
-                  </>;
-                })() : <span>All repos</span>}
-                <span className={styles.filterChevron}>{repoDropdownOpen ? '\u25B4' : '\u25BE'}</span>
+                {activeMode === 'review' ? 'Waiting on me' : 'Needs my attention'}
               </button>
-              {repoDropdownOpen && (
-                <div className={styles.filterMenu}>
-                  <div
-                    className={`${styles.filterMenuItem} ${filterRepoId === undefined ? styles.filterMenuItemActive : ''}`}
-                    onClick={() => { setFilterRepoId(undefined); setRepoDropdownOpen(false); }}
-                  >
-                    <span>All repos</span>
-                  </div>
-                  {Object.entries(
-                    (repos || []).reduce<Record<string, RepoSummary[]>>((groups, r) => {
-                      (groups[r.owner] ??= []).push(r);
-                      return groups;
-                    }, {})
-                  ).map(([ownerGroup, groupRepos]) => (
-                    <div key={ownerGroup}>
-                      <div className={styles.filterMenuGroupHeader}>{ownerGroup}</div>
-                      {groupRepos.map((r) => (
-                        <div
-                          key={r.id}
-                          className={`${styles.filterMenuItem} ${styles.filterMenuItemIndented} ${filterRepoId === r.id ? styles.filterMenuItemActive : ''}`}
-                          onClick={() => { setFilterRepoId(r.id); setRepoDropdownOpen(false); }}
-                        >
-                          <span className={styles.repoDot} style={{ backgroundColor: repoColorMap.get(r.id) }} />
-                          <span>{r.name}</span>
-                        </div>
-                      ))}
+            )}
+
+            {/* Repo filter */}
+            <Tooltip text="Filter by repository" position="bottom" disabled={repoDropdownOpen}>
+              <div className={styles.filterDropdown} ref={repoDropdownRef}>
+                <button
+                  className={`${styles.filterTrigger} ${styles.repoTrigger}`}
+                  onClick={() => setRepoDropdownOpen(!repoDropdownOpen)}
+                >
+                  {filterRepoId ? (() => {
+                    const r = (repos || []).find((r: RepoSummary) => r.id === filterRepoId);
+                    const color = filterRepoId ? repoColorMap.get(filterRepoId) : undefined;
+                    return <>
+                      {color && <span className={styles.repoDot} style={{ backgroundColor: color }} />}
+                      <span>{r?.name ?? 'All repos'}</span>
+                    </>;
+                  })() : <span>All repos</span>}
+                  <span className={styles.filterChevron}>{repoDropdownOpen ? '\u25B4' : '\u25BE'}</span>
+                </button>
+                {repoDropdownOpen && (
+                  <div className={styles.filterMenu}>
+                    <div
+                      className={`${styles.filterMenuItem} ${filterRepoId === undefined ? styles.filterMenuItemActive : ''}`}
+                      onClick={() => { setFilterRepoId(undefined); setRepoDropdownOpen(false); }}
+                    >
+                      <span>All repos</span>
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </Tooltip>
+                    {Object.entries(
+                      (repos || []).reduce<Record<string, RepoSummary[]>>((groups, r) => {
+                        (groups[r.owner] ??= []).push(r);
+                        return groups;
+                      }, {})
+                    ).map(([ownerGroup, groupRepos]) => (
+                      <div key={ownerGroup}>
+                        <div className={styles.filterMenuGroupHeader}>{ownerGroup}</div>
+                        {groupRepos.map((r) => (
+                          <div
+                            key={r.id}
+                            className={`${styles.filterMenuItem} ${styles.filterMenuItemIndented} ${filterRepoId === r.id ? styles.filterMenuItemActive : ''}`}
+                            onClick={() => { setFilterRepoId(r.id); setRepoDropdownOpen(false); }}
+                          >
+                            <span className={styles.repoDot} style={{ backgroundColor: repoColorMap.get(r.id) }} />
+                            <span>{r.name}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </Tooltip>
+
+            {/* Info icon for scoring guide */}
+            <Tooltip text="How scoring works" position="bottom">
+              <button className={styles.infoIcon} onClick={() => setGuideOpen(!guideOpen)}>
+                {'\u24D8'}
+              </button>
+            </Tooltip>
+          </div>
         </div>
 
-        <ScoringGuide open={guideOpen} onToggle={() => setGuideOpen(!guideOpen)} mode={activeMode} />
+        {summaryBar}
+
+        {guideOpen && <ScoringGuide open={guideOpen} onToggle={() => setGuideOpen(!guideOpen)} mode={activeMode} />}
 
         {prs.length === 0 ? (
           <div className={styles.empty}>{emptyMessage}</div>

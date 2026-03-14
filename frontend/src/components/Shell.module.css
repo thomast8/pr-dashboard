@@ -25,37 +25,27 @@
 .nav {
   display: flex;
   gap: 1rem;
-}
-.nav a {
-  font-size: 0.85rem;
-  color: var(--text-muted);
-  padding: 0.25rem 0.5rem;
-  border-radius: var(--radius-md);
-  transition: color var(--transition-fast), background var(--transition-fast);
-}
-.nav a:hover {
-  color: var(--text-primary);
-  background: var(--bg-elevated);
-  text-decoration: none;
-}
-.nav a.active {
-  color: var(--accent-gold);
+  align-self: stretch;
+  align-items: stretch;
 }
 
-.teamBtn {
+.navLink {
   font-size: 0.85rem;
   color: var(--text-muted);
   padding: 0.25rem 0.5rem;
-  border-radius: var(--radius-md);
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-family: inherit;
-  transition: color var(--transition-fast), background var(--transition-fast);
+  display: flex;
+  align-items: center;
+  border-bottom: 2px solid transparent;
+  transition: color var(--transition-fast), border-color var(--transition-fast);
 }
-.teamBtn:hover {
+.navLink:hover {
   color: var(--text-primary);
-  background: var(--bg-elevated);
+  text-decoration: none;
+}
+.navLinkActive {
+  color: var(--text-primary);
+  border-bottom-color: var(--accent-blue);
+  font-weight: 600;
 }
 
 .spacer {

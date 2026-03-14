@@ -19,20 +19,88 @@
   font-size: 0.85rem;
 }
 
-.header {
+.tabBar {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: space-between;
-  margin-bottom: 1rem;
-  flex-wrap: wrap;
+  border-bottom: 1px solid var(--border-default);
+  margin-bottom: 0.75rem;
   gap: 0.5rem;
 }
 
-.title {
-  font-size: 1.1rem;
+.tabBarLeft {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+}
+
+.tabBarRight {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding-bottom: 0.25rem;
+}
+
+.tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  padding: 0.5rem 0.75rem;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  margin-bottom: -1px;
+  transition: color var(--transition-fast), border-color var(--transition-fast);
+}
+.tab:hover {
+  color: var(--text-primary);
+}
+
+.tabActive {
+  color: var(--text-primary);
   font-weight: 600;
-  color: var(--accent-gold);
-  margin: 0;
+  border-bottom-color: var(--accent-blue);
+}
+
+.filterPill {
+  background: none;
+  border: 1px solid var(--border-default);
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  padding: 0.2rem 0.65rem;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+}
+.filterPill:hover {
+  color: var(--text-primary);
+  border-color: var(--accent-blue);
+}
+
+.filterPillActive {
+  background: rgba(88, 166, 255, 0.12);
+  border-color: var(--accent-blue);
+  color: var(--accent-blue);
+  font-weight: 600;
+}
+
+.infoIcon {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+  cursor: pointer;
+  padding: 0.15rem 0.3rem;
+  line-height: 1;
+  border-radius: var(--radius-sm);
+  transition: color var(--transition-fast);
+}
+.infoIcon:hover {
+  color: var(--text-primary);
 }
 
 /* Custom filter dropdown */
@@ -117,37 +185,7 @@
   padding-left: 1rem;
 }
 
-/* Mode toggle */
-.modeToggle {
-  display: flex;
-  background: var(--bg-input);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
-  overflow: hidden;
-}
-
-.modeButton {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  font-size: 0.8rem;
-  padding: 0.3rem 0.7rem;
-  font-family: inherit;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: background var(--transition-fast), color var(--transition-fast);
-}
-.modeButton:hover {
-  color: var(--text-primary);
-}
-
-.modeButtonActive {
-  background: var(--accent-blue);
-  color: var(--bg-base);
-  font-weight: 600;
-}
-
-/* Filter bar */
+/* Filter bar - no longer used but kept for repo dropdown positioning */
 .filters {
   display: flex;
   flex-wrap: wrap;
@@ -199,6 +237,7 @@
   display: flex;
   gap: 1rem;
   font-size: 0.8rem;
+  margin-bottom: 0.75rem;
 }
 
 .summaryItem {
@@ -296,7 +335,7 @@
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.6rem 0.75rem;
+  padding: 0.7rem 0.85rem;
   background: var(--bg-surface);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-md);
@@ -347,6 +386,7 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  max-width: 55%;
 }
 
 .prMeta {
@@ -507,41 +547,3 @@
 .tierSeparatorNormal { color: var(--text-muted); }
 .tierSeparatorLow { color: var(--text-dim); border-color: rgba(108, 117, 125, 0.3); }
 
-/* Actionable-only toggle */
-.actionableToggle {
-  background: none;
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
-  color: var(--text-muted);
-  font-size: 0.8rem;
-  padding: 0.3rem 0.7rem;
-  font-family: inherit;
-  cursor: pointer;
-  white-space: nowrap;
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
-}
-.actionableToggle:hover {
-  color: var(--text-primary);
-  border-color: var(--accent-blue);
-}
-
-.actionableToggleActive {
-  background: rgba(74, 222, 128, 0.12);
-  border-color: var(--accent-green);
-  color: var(--accent-green);
-}
-
-.toggleDot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--text-dim);
-  transition: background var(--transition-fast);
-}
-
-.toggleDotActive {
-  background: var(--accent-green);
-}

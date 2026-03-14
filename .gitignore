@@ -37,3 +37,6 @@ backend/alembic/versions/__pycache__/
 
 # GitNexus
 .gitnexus/
+
+# Superpowers
+.superpowers/
