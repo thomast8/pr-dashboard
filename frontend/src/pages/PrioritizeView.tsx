@@ -606,29 +606,28 @@ export function PrioritizeView() {
                         </Tooltip>
                       );
                     })}
-                  </div>
-                </div>
-
-                <div
-                  className={styles.scoreArea}
-                  onMouseEnter={() => setHoveredId(item.pr.id)}
-                  onMouseLeave={() => setHoveredId(null)}
-                >
-                  <div className={styles.scoreBar}>
                     <div
-                      className={styles.scoreFill}
-                      style={{
-                        width: `${item.priority_score}%`,
-                        backgroundColor: scoreColor(item.priority_score),
-                      }}
-                    />
+                      className={styles.scoreArea}
+                      onMouseEnter={() => setHoveredId(item.pr.id)}
+                      onMouseLeave={() => setHoveredId(null)}
+                    >
+                      <div className={styles.scoreBar}>
+                        <div
+                          className={styles.scoreFill}
+                          style={{
+                            width: `${item.priority_score}%`,
+                            backgroundColor: scoreColor(item.priority_score),
+                          }}
+                        />
+                      </div>
+                      <span className={styles.scoreLabel} style={{ color: scoreColor(item.priority_score) }}>
+                        {item.priority_score}
+                      </span>
+                      {hoveredId === item.pr.id && (
+                        <BreakdownTooltip breakdown={item.priority_breakdown} score={item.priority_score} mode={activeMode} />
+                      )}
+                    </div>
                   </div>
-                  <span className={styles.scoreLabel} style={{ color: scoreColor(item.priority_score) }}>
-                    {item.priority_score}
-                  </span>
-                  {hoveredId === item.pr.id && (
-                    <BreakdownTooltip breakdown={item.priority_breakdown} score={item.priority_score} mode={activeMode} />
-                  )}
                 </div>
               </div>
               </Fragment>);
