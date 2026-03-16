@@ -1,5 +1,6 @@
 """FastAPI application for the PR Dashboard."""
 
+import sys
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -27,6 +28,10 @@ from src.api.work_items import pr_router as work_items_pr_router
 from src.api.work_items import router as work_items_router
 from src.config.settings import settings
 from src.services.sync_service import SyncService
+
+# Configure loguru with the app's log level (default handler is DEBUG)
+logger.remove()
+logger.add(sys.stderr, level=settings.log_level)
 
 sync_service = SyncService(interval_seconds=settings.sync_interval_seconds)
 

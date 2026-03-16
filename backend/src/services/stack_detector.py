@@ -75,7 +75,7 @@ async def detect_stacks(session: AsyncSession, repo_id: int) -> list[PRStack]:
     if roots:
         logger.debug(f"  [stack-detect] roots: {[f'PR #{r.number}' for r in roots]}")
     else:
-        logger.warning(
+        logger.debug(
             f"  [stack-detect] repo_id={repo_id}: "
             "no roots found (no PR has children without "
             "itself having a parent)"
