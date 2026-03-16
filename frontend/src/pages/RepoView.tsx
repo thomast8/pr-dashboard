@@ -458,7 +458,7 @@ export function RepoView() {
                   {currentUser && (
                     <div
                       className={`${styles.filterMenuItem} ${authorFilter === '__me__' ? styles.filterMenuItemActive : ''}`}
-                      onClick={() => { setFilter('authorFilter','__me__'); setAuthorDropdownOpen(false); }}
+                      onClick={() => { setRepoFilters(repoKey, { authorFilter: '__me__', reviewerFilter: '' }); setAuthorDropdownOpen(false); }}
                     >
                       {currentUser.avatar_url && <img src={currentUser.avatar_url} alt="Me" className={styles.filterAvatar} />}
                       <span>Me</span>
@@ -525,7 +525,7 @@ export function RepoView() {
                   {currentUser && (
                     <div
                       className={`${styles.filterMenuItem} ${reviewerFilter === '__me__' ? styles.filterMenuItemActive : ''}`}
-                      onClick={() => { setFilter('reviewerFilter','__me__'); setReviewerDropdownOpen(false); }}
+                      onClick={() => { setRepoFilters(repoKey, { reviewerFilter: '__me__', authorFilter: '' }); setReviewerDropdownOpen(false); }}
                     >
                       {currentUser.avatar_url && <img src={currentUser.avatar_url} alt="Me" className={styles.filterAvatar} />}
                       <span>Me</span>
