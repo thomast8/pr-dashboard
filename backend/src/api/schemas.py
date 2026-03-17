@@ -168,6 +168,7 @@ class PRSummary(BaseModel):
     deletions: int
     changed_files: int
     mergeable_state: str | None
+    unresolved_thread_count: int | None = None
     html_url: str
     head_sha: str | None = None
     commit_count: int = 0

@@ -145,6 +145,7 @@ class PullRequest(Base):
     deletions: Mapped[int] = mapped_column(Integer, default=0)
     changed_files: Mapped[int] = mapped_column(Integer, default=0)
     mergeable_state: Mapped[str | None] = mapped_column(String(50))
+    unresolved_thread_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     html_url: Mapped[str] = mapped_column(String(1024), nullable=False)
     head_sha: Mapped[str | None] = mapped_column(String(40))
     commit_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")

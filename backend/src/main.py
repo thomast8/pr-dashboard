@@ -41,6 +41,11 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     """Start background sync on startup."""
     await sync_service.start()
 
+    try:
+        await sync_service.migrate_webhook_events()
+    except Exception as exc:
+        logger.warning(f"Webhook event migration failed (non-fatal): {exc}")
+
     yield
 
     await sync_service.stop()

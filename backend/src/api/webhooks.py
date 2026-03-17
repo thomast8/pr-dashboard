@@ -170,6 +170,15 @@ async def receive_github_webhook(request: Request) -> JSONResponse:
             )
             _track_task(asyncio.create_task(_handle_pr_event(repo, pr_number, delivery_id)))
 
+    elif event_type == "pull_request_review_thread":
+        pr_number = payload.get("pull_request", {}).get("number")
+        if pr_number:
+            logger.info(
+                f"Webhook received: event=pull_request_review_thread action={action} "
+                f"repo={full_name} pr=#{pr_number} delivery={delivery_id}"
+            )
+            _track_task(asyncio.create_task(_handle_pr_event(repo, pr_number, delivery_id)))
+
     elif event_type in ("check_suite", "check_run"):
         if event_type == "check_suite":
             head_sha = payload.get("check_suite", {}).get("head_sha", "")

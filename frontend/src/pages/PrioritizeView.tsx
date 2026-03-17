@@ -60,7 +60,7 @@ function BreakdownTooltip({ breakdown, score, mode }: { breakdown: PriorityBreak
 type ScoreImpact = 'positive' | 'negative' | 'neutral';
 type ScoredPhrase = { text: string; tip: string; impact: ScoreImpact; priority: number };
 
-function scoreSummaryReview(b: PriorityBreakdown): ScoredPhrase[] {
+function scoreSummaryReview(b: PriorityBreakdown, mergeableState: string | null, unresolvedThreads: number | null): ScoredPhrase[] {
   const phrases: ScoredPhrase[] = [];
 
   // Ball in my court (max 35)
@@ -78,9 +78,14 @@ function scoreSummaryReview(b: PriorityBreakdown): ScoredPhrase[] {
   if (b.size >= 12) phrases.push({ text: 'Quick review', tip: 'Small diff, easy to review', impact: 'positive', priority: 2 });
   else if (b.size === 0) phrases.push({ text: 'Very large diff', tip: 'Over 1000 lines, hard to review', impact: 'negative', priority: 5 });
 
-  // Mergeable (max 10)
-  if (b.mergeable === 10) phrases.push({ text: 'Clean merge', tip: 'No conflicts', impact: 'positive', priority: 1 });
-  else if (b.mergeable === 0) phrases.push({ text: 'Has conflicts', tip: 'Merge conflicts, needs rebase', impact: 'negative', priority: 6 });
+  // Mergeable (max 10) — use raw state for accurate labels
+  if (mergeableState === 'clean') phrases.push({ text: 'Clean merge', tip: 'No conflicts', impact: 'positive', priority: 1 });
+  else if (mergeableState === 'blocked' && unresolvedThreads && unresolvedThreads > 0)
+    phrases.push({ text: `Unresolved threads (${unresolvedThreads})`, tip: `${unresolvedThreads} unresolved review thread(s) must be resolved before merge`, impact: 'negative', priority: 6 });
+  else if (mergeableState === 'blocked') phrases.push({ text: 'Merge blocked', tip: 'Branch protection rules prevent merge', impact: 'negative', priority: 6 });
+  else if (mergeableState === 'dirty') phrases.push({ text: 'Has conflicts', tip: 'Merge conflicts, needs rebase', impact: 'negative', priority: 6 });
+  else if (mergeableState === 'behind') phrases.push({ text: 'Branch behind', tip: 'Base branch has new commits, needs update', impact: 'neutral', priority: 4 });
+  else if (mergeableState === 'unstable') phrases.push({ text: 'Unstable merge', tip: 'Mergeable but status checks are not clean', impact: 'neutral', priority: 4 });
 
   // Age (max 15)
   if (b.age >= 10) phrases.push({ text: 'Getting stale', tip: 'Open for a while, aging PRs risk merge conflicts', impact: 'neutral', priority: 3 });
@@ -90,11 +95,11 @@ function scoreSummaryReview(b: PriorityBreakdown): ScoredPhrase[] {
   return phrases.slice(0, 4);
 }
 
-function scoreSummaryOwner(b: PriorityBreakdown): ScoredPhrase[] {
+function scoreSummaryOwner(b: PriorityBreakdown, mergeableState: string | null, unresolvedThreads: number | null): ScoredPhrase[] {
   const phrases: ScoredPhrase[] = [];
 
   // Ready to merge composite check (highest actionability)
-  if (b.review === 35 && b.ci === 25 && b.mergeable === 15) {
+  if (b.review === 35 && b.ci === 25 && mergeableState === 'clean') {
     phrases.push({ text: 'Ready to merge!', tip: 'Approved, CI passing, clean merge, ship it!', impact: 'positive', priority: 10 });
   }
 
@@ -112,9 +117,14 @@ function scoreSummaryOwner(b: PriorityBreakdown): ScoredPhrase[] {
   else if (b.ci === 10) phrases.push({ text: 'CI pending', tip: 'CI checks still running', impact: 'neutral', priority: 1 });
   else if (b.ci === 0) phrases.push({ text: 'CI failing', tip: 'CI is failing, must be fixed before merge', impact: 'negative', priority: 7 });
 
-  // Mergeable (mergeable field, max 15)
-  if (b.mergeable === 15) phrases.push({ text: 'Clean merge', tip: 'No conflicts, can merge cleanly', impact: 'positive', priority: 3 });
-  else if (b.mergeable === 0) phrases.push({ text: 'Has conflicts', tip: 'Merge conflicts, needs rebase', impact: 'negative', priority: 6 });
+  // Mergeable (max 15) — use raw state for accurate labels
+  if (mergeableState === 'clean') phrases.push({ text: 'Clean merge', tip: 'No conflicts, can merge cleanly', impact: 'positive', priority: 3 });
+  else if (mergeableState === 'blocked' && unresolvedThreads && unresolvedThreads > 0)
+    phrases.push({ text: `Unresolved threads (${unresolvedThreads})`, tip: `${unresolvedThreads} unresolved review thread(s) must be resolved before merge`, impact: 'negative', priority: 6 });
+  else if (mergeableState === 'blocked') phrases.push({ text: 'Merge blocked', tip: 'Branch protection rules prevent merge', impact: 'negative', priority: 6 });
+  else if (mergeableState === 'dirty') phrases.push({ text: 'Has conflicts', tip: 'Merge conflicts, needs rebase', impact: 'negative', priority: 6 });
+  else if (mergeableState === 'behind') phrases.push({ text: 'Branch behind', tip: 'Base branch has new commits, needs update', impact: 'positive', priority: 4 });
+  else if (mergeableState === 'unstable') phrases.push({ text: 'Unstable merge', tip: 'Mergeable but status checks are not clean', impact: 'neutral', priority: 4 });
 
   // Size (size field, max 10) — informational
   if (b.size >= 8) phrases.push({ text: 'Small diff', tip: 'Small change, quick to merge', impact: 'positive', priority: 0 });
@@ -125,15 +135,15 @@ function scoreSummaryOwner(b: PriorityBreakdown): ScoredPhrase[] {
   return phrases.slice(0, 4);
 }
 
-function scoreSummaryDefault(b: PriorityBreakdown, _reviewState: string): ScoredPhrase[] {
+function scoreSummaryDefault(b: PriorityBreakdown, _reviewState: string, mergeableState: string | null, unresolvedThreads: number | null): ScoredPhrase[] {
   // Default mode uses the same quickest-win scoring as owner mode
-  return scoreSummaryOwner(b);
+  return scoreSummaryOwner(b, mergeableState, unresolvedThreads);
 }
 
-function getScoreSummary(b: PriorityBreakdown, reviewState: string, mode: PriorityMode | null): ScoredPhrase[] {
-  if (mode === 'review') return scoreSummaryReview(b);
-  if (mode === 'owner') return scoreSummaryOwner(b);
-  return scoreSummaryDefault(b, reviewState);
+function getScoreSummary(b: PriorityBreakdown, reviewState: string, mode: PriorityMode | null, mergeableState: string | null, unresolvedThreads: number | null): ScoredPhrase[] {
+  if (mode === 'review') return scoreSummaryReview(b, mergeableState, unresolvedThreads);
+  if (mode === 'owner') return scoreSummaryOwner(b, mergeableState, unresolvedThreads);
+  return scoreSummaryDefault(b, reviewState, mergeableState, unresolvedThreads);
 }
 
 function ScoringGuide({ open, onToggle, mode }: { open: boolean; onToggle: () => void; mode: PriorityMode | null }) {
@@ -154,7 +164,7 @@ function ScoringGuide({ open, onToggle, mode }: { open: boolean; onToggle: () =>
                   <tr><td>CI passing</td><td>20</td><td>Passing (20), pending (8), unknown (4), failing (0)</td></tr>
                   <tr><td>Small diff</td><td>15</td><td>Smaller PRs score higher, quick wins first</td></tr>
                   <tr><td>Age</td><td>15</td><td>Older PRs rise in priority (linear over 7 days)</td></tr>
-                  <tr><td>Mergeable</td><td>10</td><td>Clean (10), unstable (5), conflicts (0)</td></tr>
+                  <tr><td>Mergeable</td><td>10</td><td>Clean (10), blocked (8), behind (6), unstable (5), conflicts (0)</td></tr>
                 </tbody>
               </table>
               <p>PRs where you have never reviewed rank highest. Once you review and the author hasn&apos;t pushed new changes, the PR drops to 0 on that signal (ball is in their court).</p>
@@ -167,7 +177,7 @@ function ScoringGuide({ open, onToggle, mode }: { open: boolean; onToggle: () =>
                 <tbody>
                   <tr><td>Review status</td><td>35</td><td>Approved (35), in review (20), awaiting review (10), changes requested (0)</td></tr>
                   <tr><td>CI passing</td><td>25</td><td>Passing (25), pending (10), unknown (5), failing (0)</td></tr>
-                  <tr><td>Clean merge</td><td>15</td><td>Clean (15), unstable (8), conflicts (0)</td></tr>
+                  <tr><td>Clean merge</td><td>15</td><td>Clean (15), behind (10), unstable (8), blocked (5), conflicts (0)</td></tr>
                   <tr><td>Small diff</td><td>10</td><td>Smaller PRs score higher, quick wins first</td></tr>
                   <tr><td>Age</td><td>10</td><td>Older PRs rise in priority (linear over 7 days)</td></tr>
                   <tr><td>New feedback</td><td>5</td><td>Has unaddressed review comments (5), none or already responded (0)</td></tr>
@@ -183,7 +193,7 @@ function ScoringGuide({ open, onToggle, mode }: { open: boolean; onToggle: () =>
                 <tbody>
                   <tr><td>Review status</td><td>35</td><td>Approved (35), in review (20), awaiting review (10), changes requested (0)</td></tr>
                   <tr><td>CI passing</td><td>25</td><td>Passing (25), pending (10), unknown (5), failing (0)</td></tr>
-                  <tr><td>Clean merge</td><td>15</td><td>Clean (15), unstable (8), conflicts (0)</td></tr>
+                  <tr><td>Clean merge</td><td>15</td><td>Clean (15), behind (10), unstable (8), blocked (5), conflicts (0)</td></tr>
                   <tr><td>Small diff</td><td>10</td><td>Smaller PRs score higher, quick wins first</td></tr>
                   <tr><td>Age</td><td>10</td><td>Older PRs rise in priority (linear over 7 days)</td></tr>
                   <tr><td>Bonus</td><td>5</td><td>+5 if rebased since approval or has unaddressed feedback</td></tr>
@@ -328,7 +338,7 @@ export function PrioritizeView() {
       );
     }
     if (activeMode === 'owner') {
-      const readyToMerge = prs.filter((p) => p.priority_breakdown.review === 35 && p.priority_breakdown.ci === 25 && p.priority_breakdown.mergeable === 15).length;
+      const readyToMerge = prs.filter((p) => p.priority_breakdown.review === 35 && p.priority_breakdown.ci === 25 && p.pr.mergeable_state === 'clean').length;
       const needAction = prs.filter((p) => p.priority_breakdown.review === 0 || p.priority_breakdown.ci === 0 || p.priority_breakdown.mergeable === 0).length;
       const unsubmittedComments = prs.filter((p) => p.pr.commenters_without_review?.length > 0).length;
       const filteredLabel = hideIdlePRs && prs.length !== allPrs.length
@@ -596,7 +606,7 @@ export function PrioritizeView() {
                         </Tooltip>
                       );
                     })()}
-                    {getScoreSummary(item.priority_breakdown, item.pr.review_state, activeMode).map((p, i) => {
+                    {getScoreSummary(item.priority_breakdown, item.pr.review_state, activeMode, item.pr.mergeable_state, item.pr.unresolved_thread_count).map((p, i) => {
                       const cls = p.impact === 'positive' ? styles.badgeGreen
                         : p.impact === 'negative' ? styles.badgeRed
                         : styles.badgeDim;

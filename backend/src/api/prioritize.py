@@ -159,7 +159,7 @@ def compute_review_score(
     age_pts = _compute_age_pts(created_at, 15)
 
     # Mergeable (max 10)
-    merge_scores = {"clean": 10, "unstable": 5}
+    merge_scores = {"clean": 10, "blocked": 8, "behind": 6, "unstable": 5}
     mergeable_pts = merge_scores.get(mergeable_state or "", 0)
 
     total = max(0, ball_pts + ci_pts + size_pts + age_pts + mergeable_pts)
@@ -207,7 +207,7 @@ def compute_quickest_win_score(
     ci_pts = ci_scores.get(ci_status, 5)
 
     # Mergeable (max 15) — clean merge = one click away
-    merge_scores = {"clean": 15, "unstable": 8}
+    merge_scores = {"clean": 15, "behind": 10, "unstable": 8, "blocked": 5}
     mergeable_pts = merge_scores.get(mergeable_state or "", 0)
 
     # Size (max 10) — smaller PRs are quicker wins

@@ -679,6 +679,39 @@ class TestComputeQuickestWinScore:
         )
         assert breakdown.size == 0
 
+    def test_blocked_state_partial_score(self):
+        """blocked = 5 pts in owner mode."""
+        _, bd = compute_quickest_win_score(
+            review_state="approved",
+            ci_status="success",
+            total_lines=10,
+            mergeable_state="blocked",
+            created_at=datetime.now(UTC),
+        )
+        assert bd.mergeable == 5
+
+    def test_behind_state_high_score(self):
+        """behind = 10 pts in owner mode (trivial to fix)."""
+        _, bd = compute_quickest_win_score(
+            review_state="approved",
+            ci_status="success",
+            total_lines=10,
+            mergeable_state="behind",
+            created_at=datetime.now(UTC),
+        )
+        assert bd.mergeable == 10
+
+    def test_dirty_state_zero(self):
+        """dirty = 0 pts in owner mode (actual conflicts)."""
+        _, bd = compute_quickest_win_score(
+            review_state="approved",
+            ci_status="success",
+            total_lines=10,
+            mergeable_state="dirty",
+            created_at=datetime.now(UTC),
+        )
+        assert bd.mergeable == 0
+
 
 # ── manual_priority in PR list response ───────────────
 

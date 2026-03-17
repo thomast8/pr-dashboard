@@ -96,6 +96,54 @@ class SyncService:
                         clients.append(GitHubClient(token=token, base_url=account.base_url))
         return clients
 
+    async def migrate_webhook_events(self) -> None:
+        """One-time migration: add pull_request_review_thread to existing webhooks."""
+        target_event = "pull_request_review_thread"
+
+        async with async_session_factory() as session:
+            repos = (
+                (
+                    await session.execute(
+                        select(TrackedRepo).where(
+                            TrackedRepo.github_webhook_id.isnot(None),
+                            TrackedRepo.is_active.is_(True),
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+
+            if not repos:
+                return
+
+            logger.info(f"Checking {len(repos)} webhook(s) for event migration")
+
+            for repo in repos:
+                clients = await self._resolve_clients_for_repo(session, repo.id)
+                if not clients:
+                    continue
+                gh = clients[0]
+                try:
+                    hooks = await gh.list_webhooks(repo.owner, repo.name)
+                    for hook in hooks:
+                        if hook["id"] == repo.github_webhook_id:
+                            current_events = hook.get("events", [])
+                            if target_event not in current_events:
+                                new_events = current_events + [target_event]
+                                await gh.update_webhook_events(
+                                    repo.owner, repo.name, hook["id"], new_events
+                                )
+                                logger.info(
+                                    f"Added {target_event} to webhook {hook['id']} "
+                                    f"for {repo.full_name}"
+                                )
+                            break
+                except Exception as exc:
+                    logger.warning(f"Could not migrate webhook for {repo.full_name}: {exc}")
+                finally:
+                    await gh.close()
+
     async def sync_all(self) -> None:
         """Run one full sync cycle across all active tracked repos."""
         from src.config.settings import settings
@@ -288,6 +336,7 @@ class SyncService:
             )
 
             # --- Full fetch for changed open PRs (5 endpoints) ---
+            blocked_pr_objects: dict[int, PullRequest] = {}
             for gh_pr in changed_open:
                 if github.rate_limited:
                     logger.warning(f"  Aborting sync for {owner}/{name}: rate limit exhausted")
@@ -320,6 +369,10 @@ class SyncService:
                     pr.changed_files = detail_result.get("changed_files", 0)
                     pr.mergeable_state = detail_result.get("mergeable_state")
                     pr.commit_count = detail_result.get("commits", 0)
+                    if pr.mergeable_state == "blocked":
+                        blocked_pr_objects[gh_pr["number"]] = pr
+                    else:
+                        pr.unresolved_thread_count = None
 
                 if isinstance(runs_result, Exception):
                     logger.warning(
@@ -366,6 +419,18 @@ class SyncService:
                             commenter_logins.add(login)
                 pr.commenters = sorted(commenter_logins)
                 pr.author_last_commented_at = author_last_commented_at
+
+            # Batched GraphQL: fetch unresolved thread counts for all blocked PRs
+            if blocked_pr_objects and not github.rate_limited:
+                try:
+                    thread_counts = await github.get_unresolved_thread_counts(
+                        owner, name, list(blocked_pr_objects.keys())
+                    )
+                    for pr_num, count in thread_counts.items():
+                        if pr_num in blocked_pr_objects:
+                            blocked_pr_objects[pr_num].unresolved_thread_count = count
+                except Exception as exc:
+                    logger.warning(f"  Could not fetch thread counts for {owner}/{name}: {exc}")
 
             # --- Reduced fetch for changed closed/merged PRs ---
             # No CI fetch (irrelevant for closed). Skip get_pull if already
@@ -678,6 +743,13 @@ class SyncService:
             gh_pr = await github.get_pull(owner, name, pr_number)
             pr = await self._upsert_pr(session, repo_id, gh_pr, gh_client=github)
 
+            # Extract detail fields that _upsert_pr doesn't handle
+            pr.additions = gh_pr.get("additions", 0)
+            pr.deletions = gh_pr.get("deletions", 0)
+            pr.changed_files = gh_pr.get("changed_files", 0)
+            pr.mergeable_state = gh_pr.get("mergeable_state")
+            pr.commit_count = gh_pr.get("commits", 0)
+
             # Fetch detail, workflow runs, reviews, and comments in parallel
             (
                 runs_result,
@@ -734,6 +806,16 @@ class SyncService:
                         commenter_logins.add(login)
             pr.commenters = sorted(commenter_logins)
             pr.author_last_commented_at = author_last_commented_at
+
+            # Fetch unresolved thread count for blocked PRs
+            if pr.mergeable_state == "blocked":
+                try:
+                    counts = await github.get_unresolved_thread_counts(owner, name, [pr_number])
+                    pr.unresolved_thread_count = counts.get(pr_number)
+                except Exception as exc:
+                    logger.warning(f"  Could not fetch thread counts for PR #{pr_number}: {exc}")
+            else:
+                pr.unresolved_thread_count = None
 
             await session.commit()
 

@@ -258,3 +258,55 @@ class TestComputeReviewScore:
         )
         assert bd.ci == 8
         assert bd.mergeable == 5
+
+    def test_blocked_state_gives_partial_score(self):
+        """blocked state = 8 pts (code is reviewable, review might unblock)."""
+        _, bd = compute_review_score(
+            reviews=[],
+            user_logins={"me"},
+            ci_status="success",
+            total_lines=100,
+            mergeable_state="blocked",
+            created_at=datetime.now(UTC),
+            head_sha="abc",
+        )
+        assert bd.mergeable == 8
+
+    def test_behind_state_gives_partial_score(self):
+        """behind state = 6 pts (reviewable but slightly out of date)."""
+        _, bd = compute_review_score(
+            reviews=[],
+            user_logins={"me"},
+            ci_status="success",
+            total_lines=100,
+            mergeable_state="behind",
+            created_at=datetime.now(UTC),
+            head_sha="abc",
+        )
+        assert bd.mergeable == 6
+
+    def test_dirty_state_gives_zero(self):
+        """dirty state = 0 pts (actual conflicts)."""
+        _, bd = compute_review_score(
+            reviews=[],
+            user_logins={"me"},
+            ci_status="success",
+            total_lines=100,
+            mergeable_state="dirty",
+            created_at=datetime.now(UTC),
+            head_sha="abc",
+        )
+        assert bd.mergeable == 0
+
+    def test_unknown_state_gives_zero(self):
+        """unknown/null state = 0 pts."""
+        _, bd = compute_review_score(
+            reviews=[],
+            user_logins={"me"},
+            ci_status="success",
+            total_lines=100,
+            mergeable_state=None,
+            created_at=datetime.now(UTC),
+            head_sha="abc",
+        )
+        assert bd.mergeable == 0

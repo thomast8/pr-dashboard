@@ -82,6 +82,7 @@ export interface PRSummary {
   deletions: number;
   changed_files: number;
   mergeable_state: string | null;
+  unresolved_thread_count: number | null;
   html_url: string;
   head_sha: string | null;
   commit_count: number;

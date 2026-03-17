@@ -317,6 +317,17 @@ class GitHubClient:
         resp = await self._request_with_retry("DELETE", path, json=json)
         return resp.json()
 
+    async def _graphql(self, query: str, variables: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Execute a GitHub GraphQL query."""
+        payload: dict[str, Any] = {"query": query}
+        if variables:
+            payload["variables"] = variables
+        resp = await self._request_with_retry("POST", "/graphql", json=payload)
+        data = resp.json()
+        if "errors" in data:
+            logger.warning(f"GraphQL errors: {data['errors']}")
+        return data.get("data", {})
+
     # ── Public API ──────────────────────────────────────────────
 
     async def list_open_pulls(self, owner: str, repo: str) -> list[dict[str, Any]]:
@@ -520,6 +531,39 @@ class GitHubClient:
         """Check current rate limit status."""
         return await self._get("/rate_limit")
 
+    async def get_unresolved_thread_counts(
+        self, owner: str, repo: str, pr_numbers: list[int]
+    ) -> dict[int, int]:
+        """Fetch unresolved review thread counts for multiple PRs via GraphQL.
+
+        Returns {pr_number: unresolved_count}. On failure (e.g., GHE without
+        GraphQL), returns empty dict.
+        """
+        if not pr_numbers:
+            return {}
+
+        fragments = []
+        for num in pr_numbers:
+            fragments.append(
+                f"pr{num}: pullRequest(number: {num}) {{ "
+                f"reviewThreads(first: 100) {{ nodes {{ isResolved }} }} }}"
+            )
+        query = f'{{ repository(owner: "{owner}", name: "{repo}") {{ {" ".join(fragments)} }} }}'
+
+        try:
+            data = await self._graphql(query)
+        except Exception as exc:
+            logger.warning(f"GraphQL thread count fetch failed for {owner}/{repo}: {exc}")
+            return {}
+
+        repo_data = data.get("repository", {})
+        result: dict[int, int] = {}
+        for num in pr_numbers:
+            pr_data = repo_data.get(f"pr{num}", {})
+            threads = pr_data.get("reviewThreads", {}).get("nodes", [])
+            result[num] = sum(1 for t in threads if not t.get("isResolved", True))
+        return result
+
     # ── Write operations ──────────────────────────────────────
 
     async def set_assignees(
@@ -591,6 +635,7 @@ class GitHubClient:
             events = [
                 "pull_request",
                 "pull_request_review",
+                "pull_request_review_thread",
                 "check_suite",
                 "check_run",
                 "issue_comment",
@@ -622,6 +667,15 @@ class GitHubClient:
     async def list_webhooks(self, owner: str, repo: str) -> list[dict[str, Any]]:
         """List all webhooks on a repo."""
         return await self._get_paginated(f"/repos/{owner}/{repo}/hooks")
+
+    async def update_webhook_events(
+        self, owner: str, repo: str, hook_id: int, events: list[str]
+    ) -> dict[str, Any]:
+        """Update the events list on an existing webhook."""
+        return await self._patch(
+            f"/repos/{owner}/{repo}/hooks/{hook_id}",
+            json={"events": events},
+        )
 
     async def remove_label(self, owner: str, repo: str, issue_number: int, label: str) -> None:
         """Remove a single label from an issue/PR."""
