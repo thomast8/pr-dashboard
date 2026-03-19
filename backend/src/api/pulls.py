@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime, timedelta
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from loguru import logger
 from sqlalchemy import or_, select
@@ -36,6 +37,27 @@ from src.services.crypto import decrypt_token
 from src.services.events import broadcast_event
 from src.services.github_client import GitHubClient
 from src.services.sync_service import ALLOWED_LABELS
+
+
+def _github_error_detail(exc: Exception) -> str:
+    """Extract a user-facing error message from a GitHub API exception."""
+    if isinstance(exc, httpx.HTTPStatusError):
+        try:
+            body = exc.response.json()
+            msg = body.get("message", "")
+            errors = body.get("errors", [])
+            if errors:
+                details = "; ".join(e.get("message", str(e)) for e in errors if isinstance(e, dict))
+                if details:
+                    return f"GitHub API error: {msg} ({details})"
+                return f"GitHub API error: {msg}"
+            if msg:
+                return f"GitHub API error: {msg}"
+        except Exception:
+            pass
+        return f"GitHub API error (HTTP {exc.response.status_code})"
+    return f"GitHub API error: {exc}"
+
 
 router = APIRouter(prefix="/api/repos/{repo_id}", tags=["pulls"])
 
@@ -462,7 +484,7 @@ async def update_assignee(
         await gh.set_assignees(repo.owner, repo.name, number, logins)
     except Exception as exc:
         logger.warning(f"Failed to set assignees on GitHub for PR #{number}: {exc}")
-        raise HTTPException(status_code=502, detail="GitHub API error") from exc
+        raise HTTPException(status_code=502, detail=_github_error_detail(exc)) from exc
     finally:
         await gh.close()
 
@@ -555,7 +577,7 @@ async def update_reviewers(
             await gh.remove_reviewers(repo.owner, repo.name, number, body.remove_logins)
     except Exception as exc:
         logger.warning(f"Failed to update reviewers on GitHub for PR #{number}: {exc}")
-        raise HTTPException(status_code=502, detail="GitHub API error") from exc
+        raise HTTPException(status_code=502, detail=_github_error_detail(exc)) from exc
     finally:
         await gh.close()
 
@@ -635,7 +657,7 @@ async def update_priority(
             await gh.add_labels(repo.owner, repo.name, number, [label_name])
     except Exception as exc:
         logger.warning(f"Failed to sync priority labels on GitHub for PR #{number}: {exc}")
-        raise HTTPException(status_code=502, detail="GitHub API error") from exc
+        raise HTTPException(status_code=502, detail=_github_error_detail(exc)) from exc
     finally:
         await gh.close()
 
@@ -695,7 +717,7 @@ async def update_labels(
             await gh.remove_label(repo.owner, repo.name, number, label_name)
     except Exception as exc:
         logger.warning(f"Failed to sync labels on GitHub for PR #{number}: {exc}")
-        raise HTTPException(status_code=502, detail="GitHub API error") from exc
+        raise HTTPException(status_code=502, detail=_github_error_detail(exc)) from exc
     finally:
         await gh.close()
 

@@ -14,11 +14,12 @@ frontend/dist/
 .env
 *.env.local
 
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
+# IDE / tooling dot-folders
+.*/
+
+# Except git itself
+!.git/
+!.github/
 
 # Logs
 logs/
@@ -34,9 +35,3 @@ Thumbs.db
 
 # Alembic
 backend/alembic/versions/__pycache__/
-
-# GitNexus
-.gitnexus/
-
-# Superpowers
-.superpowers/

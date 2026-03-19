@@ -175,6 +175,7 @@ class GitHubClient:
                     self._rate_limit_sleep = None
                     await asyncio.sleep(sleep_needed)
 
+                # Retry on rate limits
                 if resp.status_code == 429 or (
                     resp.status_code == 403 and _is_secondary_rate_limit(resp)
                 ):
@@ -188,6 +189,16 @@ class GitHubClient:
                         continue
                     # Last attempt exhausted, mark as rate limited
                     self._rate_limited = True
+
+                # Retry on transient server errors (500, 502, 503)
+                if resp.status_code in (500, 502, 503) and attempt < _MAX_RETRIES - 1:
+                    wait = _BASE_RETRY_WAIT * (_RETRY_MULTIPLIER**attempt)
+                    logger.warning(
+                        f"GitHub server error ({resp.status_code}) for {url}, "
+                        f"retrying in {wait:.0f}s (attempt {attempt + 1}/{_MAX_RETRIES})"
+                    )
+                    await asyncio.sleep(wait)
+                    continue
 
                 if raise_for_status:
                     _raise_for_status(resp)
