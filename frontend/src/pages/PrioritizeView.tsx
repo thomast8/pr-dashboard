@@ -294,6 +294,8 @@ export function PrioritizeView() {
     return allPrs.filter((p) => {
       const b = p.priority_breakdown;
       if (activeMode === 'review') {
+        // Blocked by another PR in the stack — no point reviewing until the blocker merges
+        if (p.blocked_by_pr_id) return false;
         // Idle in review mode: I reviewed, nothing changed (ball in author's court)
         return b.review !== 0;
       }
@@ -301,6 +303,8 @@ export function PrioritizeView() {
         // Idle in owner mode: no changes requested, not approved, no new feedback, CI not failing
         // i.e., just waiting with nothing to do
         const noActionNeeded = b.review > 0 && b.review < 35 && b.rebase === 0 && b.ci > 0;
+        // Blocked + idle = nothing to do. Blocked + CI failing or changes requested = still needs work.
+        if (p.blocked_by_pr_id && noActionNeeded) return false;
         return !noActionNeeded;
       }
       return true;
