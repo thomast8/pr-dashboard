@@ -442,6 +442,215 @@ async def _discover_spaces_background(account_id: int) -> None:
         )
 
 
+# ── Auth Health ─────────────────────────────────────────────
+
+
+def _remediation_for_status(token_status: str, *, account_id: int | None = None) -> dict:
+    """Map a token_status string to a remediation action."""
+    if token_status in ("expired", "revoked"):
+        return {
+            "action": "re_authenticate",
+            "label": "Re-authenticate",
+            "url": f"/api/auth/github?link=true&account_id={account_id}" if account_id else None,
+            "description": "Your GitHub token is no longer valid. Please re-authenticate.",
+        }
+    if token_status == "decrypt_failed":
+        return {
+            "action": "re_authenticate",
+            "label": "Re-authenticate",
+            "url": f"/api/auth/github?link=true&account_id={account_id}" if account_id else None,
+            "description": "Token cannot be decrypted. The server encryption key may have changed.",
+        }
+    if token_status == "sso_required":
+        return {
+            "action": "authorize_sso",
+            "label": "Authorize SSO",
+            "description": "Your token needs SSO/SAML authorization for this organization.",
+        }
+    if token_status == "insufficient_scope":
+        return {
+            "action": "check_permissions",
+            "label": "Check permissions",
+            "description": (
+                "Your token may lack required scopes (repo, read:org). "
+                "Re-authenticate or update your token."
+            ),
+        }
+    return {
+        "action": "check_permissions",
+        "label": "Investigate",
+        "description": f"Unexpected token status: {token_status}",
+    }
+
+
+@router.get("/health")
+async def auth_health(request: Request):
+    """Return auth health summary for the current user."""
+    user_id = get_github_user_id(request)
+    if not user_id:
+        return JSONResponse(status_code=401, content={"detail": "Not authenticated"})
+
+    async with async_session_factory() as session:
+        from src.models.tables import RepoTracker, Space, TrackedRepo
+
+        # Get user's accounts with issues
+        accounts = (
+            (
+                await session.execute(
+                    select(GitHubAccount).where(
+                        GitHubAccount.user_id == user_id,
+                        GitHubAccount.is_active.is_(True),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+        account_issues = []
+        for acct in accounts:
+            if acct.token_status != "ok":
+                # Find affected repos through spaces -> repo_trackers
+                trackers = (
+                    (
+                        await session.execute(
+                            select(RepoTracker)
+                            .join(Space, RepoTracker.space_id == Space.id)
+                            .join(TrackedRepo, RepoTracker.repo_id == TrackedRepo.id)
+                            .where(
+                                Space.github_account_id == acct.id,
+                                TrackedRepo.is_active.is_(True),
+                            )
+                        )
+                    )
+                    .scalars()
+                    .all()
+                )
+                affected_repo_ids = [t.repo_id for t in trackers]
+                affected_repos = []
+                for rid in affected_repo_ids:
+                    repo = await session.get(TrackedRepo, rid)
+                    if repo:
+                        affected_repos.append(repo.full_name)
+
+                account_issues.append(
+                    {
+                        "id": acct.id,
+                        "login": acct.login,
+                        "token_status": acct.token_status,
+                        "token_error": acct.token_error,
+                        "token_checked_at": (
+                            acct.token_checked_at.isoformat() if acct.token_checked_at else None
+                        ),
+                        "affected_repos": affected_repos,
+                        "remediation": _remediation_for_status(
+                            acct.token_status, account_id=acct.id
+                        ),
+                    }
+                )
+
+        # Get repos with sync errors (through user's trackers)
+        user_trackers = (
+            (await session.execute(select(RepoTracker).where(RepoTracker.user_id == user_id)))
+            .scalars()
+            .all()
+        )
+        stale_repos = []
+        for tracker in user_trackers:
+            repo = await session.get(TrackedRepo, tracker.repo_id)
+            if repo and repo.is_active and repo.last_sync_error:
+                stale_repos.append(
+                    {
+                        "id": repo.id,
+                        "full_name": repo.full_name,
+                        "last_sync_error": repo.last_sync_error,
+                        "last_sync_error_at": (
+                            repo.last_sync_error_at.isoformat() if repo.last_sync_error_at else None
+                        ),
+                        "last_successful_sync_at": (
+                            repo.last_successful_sync_at.isoformat()
+                            if repo.last_successful_sync_at
+                            else None
+                        ),
+                        "remediation": {
+                            "action": "check_repo_access",
+                            "label": "Check repository",
+                            "description": ("Verify the repo exists and your token has access"),
+                        },
+                    }
+                )
+
+        return {
+            "has_issues": bool(account_issues or stale_repos),
+            "accounts": account_issues,
+            "stale_repos": stale_repos,
+        }
+
+
+@router.post("/health/check")
+async def auth_health_check(request: Request):
+    """On-demand token validation: call GET /user on GitHub for each account."""
+    from src.services.crypto import decrypt_token
+    from src.services.github_client import GitHubClient
+
+    user_id = get_github_user_id(request)
+    if not user_id:
+        return JSONResponse(status_code=401, content={"detail": "Not authenticated"})
+
+    async with async_session_factory() as session:
+        accounts = (
+            (
+                await session.execute(
+                    select(GitHubAccount).where(
+                        GitHubAccount.user_id == user_id,
+                        GitHubAccount.is_active.is_(True),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+        from datetime import UTC, datetime
+
+        now = datetime.now(UTC)
+        for acct in accounts:
+            if not acct.encrypted_token:
+                continue
+            token = decrypt_token(acct.encrypted_token)
+            if not token:
+                acct.token_status = "decrypt_failed"
+                acct.token_error = (
+                    "Token cannot be decrypted. The server encryption key may have changed."
+                )
+                acct.token_checked_at = now
+                continue
+
+            gh = GitHubClient(token=token, base_url=acct.base_url)
+            try:
+                await gh.get_authenticated_user()
+                was_errored = acct.token_status != "ok"
+                acct.token_status = "ok"
+                acct.token_error = None
+                acct.token_checked_at = now
+                if was_errored:
+                    await broadcast_event(
+                        "auth_resolved",
+                        {"account_id": acct.id, "login": acct.login},
+                    )
+            except Exception as exc:
+                acct.token_status = "expired"
+                acct.token_error = str(exc)[:500]
+                acct.token_checked_at = now
+            finally:
+                await gh.close()
+
+        await session.commit()
+
+    # Return updated health status
+    return await auth_health(request)
+
+
 @router.get("/user")
 async def get_current_user(request: Request):
     """Return current GitHub user info or null if not connected."""
