@@ -58,6 +58,8 @@ export interface RepoSummary {
   is_active: boolean;
   default_branch: string;
   last_synced_at: string | null;
+  last_sync_error: string | null;
+  last_successful_sync_at: string | null;
   open_pr_count: number;
   failing_ci_count: number;
   stale_pr_count: number;
