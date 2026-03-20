@@ -14,6 +14,7 @@ import { GitHubIcon } from './GitHubIcon';
 import { DevUserSwitcher } from './DevUserSwitcher';
 import { VersionBadge } from './VersionBadge';
 import { AuthHealthBanner } from './AuthHealthBanner';
+import { AuthHealthPanel } from './AuthHealthPanel';
 import styles from './Shell.module.css';
 
 export function Shell() {
@@ -153,6 +154,12 @@ export function Shell() {
                   >
                     Team
                   </button>
+                  <button
+                    className={styles.userMenuItem}
+                    onClick={() => { setShowUserMenu(false); setShowHealth(true); }}
+                  >
+                    Account health
+                  </button>
 
                   <div className={styles.userMenuDivider} />
 
@@ -208,9 +215,7 @@ export function Shell() {
       </main>
       {showTeam && <TeamPanel onClose={() => setShowTeam(false)} />}
       {showSpaces && <SpaceManager onClose={() => setShowSpaces(false)} />}
-      {showHealth && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 100 }} onClick={() => setShowHealth(false)} />
-      )}
+      {showHealth && <AuthHealthPanel onClose={() => setShowHealth(false)} />}
     </div>
   );
 }
